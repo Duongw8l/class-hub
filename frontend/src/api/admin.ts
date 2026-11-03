@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client'
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut, apiUpload } from './client'
 import type { UserRole } from './auth'
 
 // Khớp schema của back-end: backend/app/auth/admin_schemas.py, backend/app/classes/admin_schemas.py.
@@ -95,6 +95,91 @@ export function updateUser(id: number, body: UserUpdate): Promise<AdminUser> {
 
 export function resetPassword(id: number): Promise<{ temporary_password: string }> {
   return apiPost<{ temporary_password: string }>(`/admin/users/${id}/reset-password`, undefined)
+}
+
+// --- Nhập giáo viên từ tệp (khớp backend/app/auth/admin_schemas.py) ---
+
+export type UserImportStatus = 'ok' | 'warning' | 'error'
+
+export interface UserImportMessage {
+  column: string | null
+  message: string
+}
+
+export interface UserImportRow {
+  line: number
+  full_name: string | null
+  email: string | null
+  role: UserRole | null
+  role_label: string | null
+  status: UserImportStatus
+  action: 'new' | null
+  messages: UserImportMessage[]
+}
+
+export interface UserImportField {
+  name: string
+  label: string
+  required: boolean
+  column: string | null
+}
+
+export interface UserImportSummary {
+  total_rows: number
+  error_rows: number
+  warning_rows: number
+  new_rows: number
+  has_changes: boolean
+}
+
+export interface UserImportPreview {
+  job_id: string | null
+  file_name: string
+  header_line: number
+  detected_columns: string[]
+  fields: UserImportField[]
+  missing_required: string[]
+  ignored_columns: string[]
+  notes: string[]
+  summary: UserImportSummary
+  can_confirm: boolean
+  expires_at: string | null
+  rows: UserImportRow[]
+  truncated: boolean
+}
+
+export interface CreatedCredential {
+  full_name: string
+  email: string
+  role: UserRole
+  role_label: string
+  // Chỉ có trong phản hồi này: không thể xem lại sau đó.
+  temporary_password: string
+}
+
+export interface UserImportConfirm {
+  job_id: string
+  status: 'previewed' | 'confirmed'
+  created: number
+  already_confirmed: boolean
+  credentials: CreatedCredential[]
+}
+
+// Tải tệp giáo viên lên và nhận bản xem trước. Chưa tạo tài khoản nào.
+export function previewUserImport(request: {
+  file: File
+  mapping?: Record<string, string | null>
+  headerRow?: number
+}): Promise<UserImportPreview> {
+  const form = new FormData()
+  form.append('file', request.file)
+  if (request.mapping !== undefined) form.append('mapping', JSON.stringify(request.mapping))
+  if (request.headerRow !== undefined) form.append('header_row', String(request.headerRow))
+  return apiUpload<UserImportPreview>('/admin/users/import', form)
+}
+
+export function confirmUserImport(jobId: string): Promise<UserImportConfirm> {
+  return apiPost<UserImportConfirm>(`/admin/users/import/${jobId}/confirm`, undefined)
 }
 
 export function fetchSchool(signal?: AbortSignal): Promise<School> {

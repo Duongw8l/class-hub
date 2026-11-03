@@ -116,6 +116,7 @@ class AuditAction(StrEnum):
     UPDATE_REGULATION = "update_regulation"  # Admin đánh dấu hết hiệu lực hoặc bật lại
     # Quản trị hệ thống (D-096 trở đi). Giá trị không dài quá 20 ký tự để khỏi đổi độ dài cột.
     CREATE_USER = "create_user"  # Admin tạo tài khoản
+    IMPORT_USERS = "import_users"  # Admin tạo nhiều tài khoản giáo viên từ một tệp
     UPDATE_USER = "update_user"  # Admin sửa tên, email, vai trò, khoá / mở khoá
     RESET_USER_PASSWORD = "reset_user_password"  # Admin đặt lại mật khẩu
     CHANGE_PASSWORD = "change_password"  # người dùng tự đổi mật khẩu của mình

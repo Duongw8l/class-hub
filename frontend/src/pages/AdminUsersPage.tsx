@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { AdminUser } from '../api/admin'
 import { AdminGate, TempPasswordNotice } from '../components/admin/shared'
 import { UserForm } from '../components/admin/UserForm'
+import { UserImportWizard } from '../components/admin/UserImportWizard'
 import { UserTable } from '../components/admin/UserTable'
 import { PageTitle, Panel } from '../components/Panel'
 import { QueryState } from '../components/QueryState'
@@ -85,6 +86,13 @@ export default function AdminUsersPage() {
                 })
               }}
             />
+          </Panel>
+          <Panel
+            id="nhap-giao-vien"
+            title="Nhập giáo viên từ tệp"
+            description="Tải tệp Excel/CSV để tạo nhiều tài khoản giáo viên cùng lúc. Mỗi tài khoản được cấp một mật khẩu tạm, hiện một lần kèm nút tải CSV."
+          >
+            <UserImportWizard />
           </Panel>
         </>
       )}

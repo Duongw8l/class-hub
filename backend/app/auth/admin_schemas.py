@@ -1,10 +1,12 @@
 """Schema của API quản lý tài khoản (Admin) và đổi mật khẩu. Không schema nào có password_hash."""
 
-from typing import Annotated, Self
+import uuid
+from datetime import datetime
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
-from app.core.enums import UserRole
+from app.core.enums import ImportStatus, UserRole
 from app.core.security import MAX_PASSWORD_BYTES
 
 # Kiểm hình dạng đơn giản, không thêm thư viện email-validator: một @ và có dấu chấm ở tên miền.
@@ -77,3 +79,73 @@ class ChangePasswordIn(BaseModel):
 
 class MessageOut(BaseModel):
     detail: str
+
+
+# --- Nhập giáo viên từ tệp (chỉ Admin) ----------------------------------------------------------
+
+
+class UserImportMessageOut(BaseModel):
+    column: str | None  # tên cột trong tệp (hoặc tên trường nếu chưa ánh xạ)
+    message: str
+
+
+class UserImportRowOut(BaseModel):
+    line: int  # số dòng trong tệp
+    full_name: str | None
+    email: str | None
+    role: UserRole | None  # None khi vai trò trống/không hợp lệ
+    role_label: str | None
+    status: Literal["ok", "warning", "error"]
+    action: Literal["new"] | None  # chỉ tạo tài khoản mới; None khi dòng lỗi
+    messages: list[UserImportMessageOut]
+
+
+class UserImportFieldOut(BaseModel):
+    name: str
+    label: str
+    required: bool
+    column: str | None  # cột của tệp đang được ánh xạ vào trường này
+
+
+class UserImportSummaryOut(BaseModel):
+    total_rows: int
+    error_rows: int
+    warning_rows: int
+    new_rows: int  # số tài khoản sẽ được tạo
+    has_changes: bool
+
+
+class UserImportPreviewOut(BaseModel):
+    # None khi thiếu cột bắt buộc: chưa có bản xem trước để xác nhận. Có dòng lỗi thì vẫn có
+    # job_id nhưng can_confirm là False và xác nhận bị từ chối.
+    job_id: uuid.UUID | None
+    file_name: str
+    header_line: int
+    detected_columns: list[str]
+    fields: list[UserImportFieldOut]
+    missing_required: list[str]
+    ignored_columns: list[str]
+    notes: list[str]
+    summary: UserImportSummaryOut
+    can_confirm: bool
+    expires_at: datetime | None
+    rows: list[UserImportRowOut]
+    truncated: bool  # True: chỉ liệt kê một phần dòng (luôn gồm mọi dòng lỗi và cảnh báo)
+
+
+class CreatedCredentialOut(BaseModel):
+    full_name: str
+    email: str
+    role: UserRole
+    role_label: str
+    # Bản rõ chỉ có trong phản hồi này; không lưu ở đâu khác và không ghi nhật ký.
+    temporary_password: str
+
+
+class UserImportConfirmOut(BaseModel):
+    job_id: uuid.UUID
+    status: ImportStatus
+    created: int
+    already_confirmed: bool
+    # Danh sách tài khoản vừa tạo kèm mật khẩu tạm (rỗng khi xác nhận lại job đã xong).
+    credentials: list[CreatedCredentialOut]

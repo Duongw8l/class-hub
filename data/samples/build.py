@@ -15,6 +15,7 @@ Bốn tệp (xem data/samples/README.md):
 import csv
 import io
 import random
+import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -44,7 +45,15 @@ ROSTER_CLASS = "11A9"
 ROSTER_SIZE = 30
 ROSTER_SEED = 20261013  # cố định để tệp sinh lại luôn giống nhau
 
-TITLE_ROWS = 3  # hai dòng tiêu đề lớn và một dòng trống phía trên bảng, như sổ điểm xuất ra
+TEACHER_XLSX = "danh-sach-giao-vien.xlsx"
+TEACHER_SIZE = 6  # 5 giáo viên + 1 Ban giám hiệu
+TEACHER_SEED = 20261103  # cố định để tệp sinh lại luôn giống nhau
+# Tên miền email GIẢ, không trùng "@example.com" của tài khoản seed (nguyên tắc 7).
+TEACHER_EMAIL_DOMAIN = "thpt-demo.local"
+
+TITLE_ROWS = (
+    3  # hai dòng tiêu đề lớn và một dòng trống phía trên bảng, như sổ điểm xuất ra
+)
 HEADER_LINE = TITLE_ROWS + 1
 FIRST_DATA_LINE = HEADER_LINE + 1
 
@@ -59,7 +68,9 @@ Severity = Literal["error", "warning", "ok"]
 class Fault:
     """Lỗi cài sẵn ở một học sinh của tệp `FAULTY_XLSX`: dòng, cột và đoạn thông điệp phải thấy."""
 
-    index: int  # vị trí học sinh trong lớp, từ 0; dòng trong tệp = FIRST_DATA_LINE + index
+    index: (
+        int  # vị trí học sinh trong lớp, từ 0; dòng trong tệp = FIRST_DATA_LINE + index
+    )
     column: str
     severity: Severity
     fragment: str
@@ -132,18 +143,29 @@ class _Scores:
             self.ck = value
 
     def get(self, kind: str, seq: int) -> Decimal:
-        return self.tx[seq - 1] if kind == "tx" else (self.gk if kind == "gk" else self.ck)
+        return (
+            self.tx[seq - 1] if kind == "tx" else (self.gk if kind == "gk" else self.ck)
+        )
 
 
-def _scores(data: TableRows, members: list[_Member], tx_count: int) -> dict[int, _Scores]:
-    subject_id = next(row["id"] for row in data["subjects"] if row["name"] == SUBJECT_NAME)
+def _scores(
+    data: TableRows, members: list[_Member], tx_count: int
+) -> dict[int, _Scores]:
+    subject_id = next(
+        row["id"] for row in data["subjects"] if row["name"] == SUBJECT_NAME
+    )
     found: dict[int, dict[tuple[str, int], Decimal]] = defaultdict(dict)
     for row in data["assessments"]:
         if row["subject_id"] == subject_id and row["semester"] == SEMESTER:
-            found[row["class_student_id"]][(row["kind"].value, row["seq"])] = row["score"]
+            found[row["class_student_id"]][(row["kind"].value, row["seq"])] = row[
+                "score"
+            ]
     return {
         member.class_student_id: _Scores(
-            tx=[found[member.class_student_id][("tx", seq)] for seq in range(1, tx_count + 1)],
+            tx=[
+                found[member.class_student_id][("tx", seq)]
+                for seq in range(1, tx_count + 1)
+            ],
             gk=found[member.class_student_id][("gk", 1)],
             ck=found[member.class_student_id][("ck", 1)],
         )
@@ -153,14 +175,21 @@ def _scores(data: TableRows, members: list[_Member], tx_count: int) -> dict[int,
 
 def _tx_count(data: TableRows, config: AnalyticsConfig) -> int:
     periods = next(
-        row["periods_per_year"] for row in data["subjects"] if row["name"] == SUBJECT_NAME
+        row["periods_per_year"]
+        for row in data["subjects"]
+        if row["name"] == SUBJECT_NAME
     )
     return config.required_regular(periods)
 
 
 def _score_cells(scores: _Scores, config: AnalyticsConfig) -> list[Any]:
     average = semester_average_from_scores(scores.tx, scores.gk, scores.ck, config)
-    return [*(float(v) for v in scores.tx), float(scores.gk), float(scores.ck), float(average or 0)]
+    return [
+        *(float(v) for v in scores.tx),
+        float(scores.gk),
+        float(scores.ck),
+        float(average or 0),
+    ]
 
 
 def _workbook_bytes(grid: list[list[Any]], title: str = "Bảng điểm") -> bytes:
@@ -237,7 +266,9 @@ def faulty_score_grid(data: TableRows, config: AnalyticsConfig) -> list[list[Any
     rows[14][column["ĐĐGtx 3"]] = None
     rows[17][column["ĐĐGck"]] = "8,25"
     rows[23][column["Họ và tên"]] = WRONG_NAME
-    rows[COMMA_STUDENT][column["ĐĐGtx 1"]] = _comma(rows[COMMA_STUDENT][column["ĐĐGtx 1"]])
+    rows[COMMA_STUDENT][column["ĐĐGtx 1"]] = _comma(
+        rows[COMMA_STUDENT][column["ĐĐGtx 1"]]
+    )
     return [*_title_rows(), head, *rows]
 
 
@@ -250,7 +281,9 @@ def attendance_grid(data: TableRows) -> list[list[str]]:
         if row["class_student_id"] in members
         and (row["date"].year, row["date"].month) == ATTENDANCE_MONTH
     ]
-    month_rows.sort(key=lambda row: (row["date"], members[row["class_student_id"]].code))
+    month_rows.sort(
+        key=lambda row: (row["date"], members[row["class_student_id"]].code)
+    )
     return [
         ["Mã HS", "Họ và tên", "Ngày", "Trạng thái"],
         *(
@@ -268,13 +301,17 @@ def attendance_grid(data: TableRows) -> list[list[str]]:
 def _csv_bytes(grid: list[list[str]]) -> bytes:
     buffer = io.StringIO()
     csv.writer(buffer, lineterminator="\r\n").writerows(grid)
-    return b"\xef\xbb\xbf" + buffer.getvalue().encode("utf-8")  # BOM để Excel mở đúng tiếng Việt
+    return b"\xef\xbb\xbf" + buffer.getvalue().encode(
+        "utf-8"
+    )  # BOM để Excel mở đúng tiếng Việt
 
 
 def roster_grid() -> list[list[str]]:
     """Danh sách lớp 11A9 (lớp mới, chưa có trong seed): mã HS1109001..HS1109030, sinh năm 2010."""
     rng = random.Random(ROSTER_SEED)
-    grid = [["STT", "Mã HS", "Họ và tên", "Ngày sinh", "Họ tên phụ huynh", "Số điện thoại"]]
+    grid = [
+        ["STT", "Mã HS", "Họ và tên", "Ngày sinh", "Họ tên phụ huynh", "Số điện thoại"]
+    ]
     for number in range(1, ROSTER_SIZE + 1):
         born = date(2010, 1, 1) + timedelta(days=rng.randrange(365))
         grid.append(
@@ -290,12 +327,39 @@ def roster_grid() -> list[list[str]]:
     return grid
 
 
+def teacher_grid() -> list[list[str]]:
+    """Danh sách giáo viên để nhập hàng loạt (Admin): họ tên, email GIẢ, vai trò.
+
+    5 dòng "Giáo viên" và 1 dòng "Ban giám hiệu"; email không trùng tài khoản seed. Email không
+    dấu, suy ra từ họ tên đã bỏ dấu cộng số thứ tự để chắc chắn không trùng nhau.
+    """
+    rng = random.Random(TEACHER_SEED)
+    grid = [["Họ và tên", "Email", "Vai trò"]]
+    for number in range(1, TEACHER_SIZE + 1):
+        name = random_full_name(rng)
+        role = "Ban giám hiệu" if number == TEACHER_SIZE else "Giáo viên"
+        local = _ascii_slug(name) or "giaovien"
+        grid.append([name, f"{local}{number}@{TEACHER_EMAIL_DOMAIN}", role])
+    return grid
+
+
+def _ascii_slug(text: str) -> str:
+    """Bỏ dấu tiếng Việt và ghép liền, chỉ giữ chữ thường và số (để làm phần đầu email)."""
+    folded = unicodedata.normalize("NFD", text.lower().replace("đ", "d"))
+    return "".join(
+        ch for ch in folded if ch.isalnum() and not unicodedata.combining(ch)
+    )
+
+
 def build_samples(config: AnalyticsConfig) -> dict[str, bytes]:
     """Tên tệp -> nội dung. Dữ liệu sinh với tham số mặc định (không --hold-out)."""
-    data = generate(SeedParams(), config.regular_assessment_count, "khong-dung-mat-khau")
+    data = generate(
+        SeedParams(), config.regular_assessment_count, "khong-dung-mat-khau"
+    )
     return {
         CORRECT_XLSX: _workbook_bytes(correct_score_grid(data, config)),
         FAULTY_XLSX: _workbook_bytes(faulty_score_grid(data, config)),
         ATTENDANCE_CSV: _csv_bytes(attendance_grid(data)),
         ROSTER_XLSX: _workbook_bytes(roster_grid(), "Danh sách lớp"),
+        TEACHER_XLSX: _workbook_bytes(teacher_grid(), "Danh sách giáo viên"),
     }

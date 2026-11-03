@@ -1,15 +1,16 @@
 """Model người dùng và nhật ký truy cập. GVBM / GVCN không phải cột: suy ra từ
 teaching_assignments và classes.homeroom_teacher_id (xem docs/DESIGN.md mục 2)."""
 
+import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, func, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Uuid, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base import Base, IntPk, enum_type
-from app.core.enums import AuditAction, UserRole
+from app.core.enums import AuditAction, ImportStatus, UserRole
 
 
 class User(Base):
@@ -47,3 +48,31 @@ class AuditLog(Base):
     class_id: Mapped[int | None] = mapped_column(Integer)
     details: Mapped[Any] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserImportJob(Base):
+    """Bản xem trước nhập nhiều tài khoản giáo viên từ một tệp (chỉ Admin).
+
+    Phạm vi toàn trường (khác import_jobs gắn với một lớp): chỉ Admin tạo. Job lưu các bản ghi
+    hợp lệ đã chuẩn hoá (họ tên, email, vai trò) để xác nhận; KHÔNG bao giờ lưu mật khẩu. Sau khi
+    xác nhận, `rows` được xoá rỗng.
+    """
+
+    __tablename__ = "user_import_jobs"
+    __table_args__ = (
+        Index("ix_user_import_jobs_admin_id", "admin_id"),
+        Index("ix_user_import_jobs_expires_at", "expires_at"),
+    )
+
+    # UUID ngẫu nhiên: job_id nằm trong URL nên không được đoán ra.
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    admin_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    status: Mapped[ImportStatus] = mapped_column(
+        enum_type(ImportStatus, "status"), server_default=ImportStatus.PREVIEWED.value
+    )
+    file_name: Mapped[str] = mapped_column(String(255))
+    summary: Mapped[Any] = mapped_column(JSONB)  # các số đếm của bản xem trước (và kết quả ghi)
+    rows: Mapped[Any] = mapped_column(JSONB)  # các bản ghi cần tạo, đã chuẩn hoá; rỗng sau xác nhận
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
