@@ -18,6 +18,7 @@ Cập nhật lần cuối: 2026-10-13 (Giai đoạn 9). Tên và thứ tự giai
 | 9 | Nhận xét và báo cáo | Xong, đã commit `7af1220` và push (đã chạy thật với Gemini gói miễn phí; chưa có giáo viên chấm chất lượng; xem bên dưới) |
 | — | Giao diện v2 (thiết kế lại toàn bộ giao diện) | Xong, đã commit `479e486` (chưa thử ngoài Chrome; xem mục riêng) |
 | — | Chức năng Admin (tài khoản, năm học, lớp, phân công, nhập danh sách học sinh) | Xong, đã commit `2eb8947` và push (chưa thử với tệp thật của trường; xem mục cuối) |
+| — | Nhập giáo viên từ tệp (Admin tải Excel/CSV tạo nhiều tài khoản) | Xong (chưa commit; chạy thử thật trên API + DB; chưa thử trên trình duyệt; xem mục cuối) |
 | 10 | Đánh giá AI | Chưa làm |
 | 11 | Bảo mật, triển khai, demo | Chưa làm |
 
@@ -500,3 +501,37 @@ Làm theo yêu cầu "làm nốt chức năng admin" (D-096 đến D-101), trong
 3. "Năm học & lớp" → thêm lớp `11A9` với giáo viên mới làm GVCN → "Quản lý" → gán Toán, hoặc chọn 11A1 rồi "Sao chép" → kéo `data/samples/danh-sach-hoc-sinh-11a9.xlsx` vào, xem trước, "Xác nhận nhập". Giáo viên mới đăng nhập lại sẽ thấy "Lớp 11A9" với 30 học sinh.
 4. Khoá giáo viên mới ở "Tài khoản": phiên của họ bị đăng xuất ở yêu cầu kế tiếp. Dọn dữ liệu thử: `make seed`.
 5. `make test`, `make lint`. Swagger `/api/docs`, nhóm `admin`.
+
+
+## Nhập giáo viên từ tệp (Admin)
+
+Làm theo yêu cầu "cho upload file chứa thông tin giáo viên lên luôn" (D-110). Luồng song song, gọn, với chức năng nhập danh sách học sinh, nhưng **toàn trường** (không gắn lớp) và **tạo tài khoản mới**.
+
+### Đã làm
+
+- **Back-end** (`backend/app/auth/user_import.py`, `admin_router.py`, `admin_schemas.py`, `models.py`): hai endpoint chỉ Admin `POST /admin/users/import` (xem trước, chưa tạo gì) và `POST /admin/users/import/{job_id}/confirm` (tạo tài khoản, trả mật khẩu tạm một lần). Qua dependency `AdminUser` (401 rồi 403 **trước** khi đọc tệp). Trường: Họ và tên + Email (bắt buộc), Vai trò (tuỳ chọn: Giáo viên / Ban giám hiệu; trống → Giáo viên; admin/lạ → lỗi). Email sai, trùng trong tệp, hoặc đã có tài khoản → lỗi dòng; còn lỗi thì không tạo gì. Dùng lại hàm đọc/ánh xạ cột của `app/imports/`.
+- **Mật khẩu tạm**: mỗi tài khoản một mật khẩu ngẫu nhiên, **chỉ trả về một lần**; không lưu DB (`user_import_jobs.rows` xoá rỗng sau xác nhận) hay nhật ký (`import_users` chỉ ghi `job_id`, số lượng, `user_ids`).
+- **Migration thứ 12** (`a7d2f3c9e1b4`): bảng `user_import_jobs`, CHECK `audit_logs.action` thêm `import_users`. Đã hoà giải trạng thái DB dev bị kẹt ở revision mồ côi (xem D-110).
+- **Giao diện** (`frontend/.../UserImportWizard.tsx`, thêm panel ở `AdminUsersPage`): chọn tệp (kéo thả) → xem trước (bảng, tô đỏ dòng lỗi, chọn cột khi thiếu) → xác nhận → bảng email ↔ mật khẩu tạm + nút **Tải CSV**.
+- **Tệp mẫu** `data/samples/danh-sach-giao-vien.xlsx` (6 dòng, email giả). **Test**: thêm `backend/tests/auth/test_user_import.py` (phân quyền 4 vai trò + 401, quy tắc kiểm dòng tính tay, luồng thật, đăng nhập được bằng mật khẩu tạm, không lưu/không ghi nhật ký mật khẩu, idempotent, hết hạn 410, thiếu cột).
+
+### Đã kiểm chứng và còn chờ kiểm chứng
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 12), `downgrade -1` rồi lên lại, `alembic check` sạch; DB dev đã hoà giải khỏi revision mồ côi | Đã chạy, đúng |
+| `ruff check` + `ruff format --check`, `tsc -b`, `eslint` (các tệp đổi) | Đã chạy, qua |
+| `pytest` (toàn bộ, trong container với `data/` và `eval/` chép vào) | Đã chạy |
+| API thật (cổng 8000) với admin: xem trước tệp (2 đúng, 1 email sai, 1 trùng → `can_confirm=false`); xác nhận tệp đúng tạo 2 tài khoản; **giáo viên mới đăng nhập được bằng mật khẩu tạm**; xác nhận lại idempotent; nhật ký không có mật khẩu; `job.rows` rỗng sau xác nhận | Đã chạy, đúng; đã dọn dữ liệu thử |
+| **Trình duyệt thật** (kéo thả tệp, bảng xem trước, tải CSV mật khẩu) | **Chưa kiểm** (mới kiểm `tsc`/`eslint` và qua API) |
+| Tệp Excel thật của trường (cột, định dạng) | **Chưa kiểm** (chỉ tệp mẫu giả) |
+
+### Cách kiểm tra
+
+1. `make up` (hoặc `make dev-be`/`make dev-fe`). DB dev đã ở migration 12; nếu DB mới: `make migrate`.
+2. Đăng nhập `admin@example.com`, vào **Tài khoản** → panel "Nhập giáo viên từ tệp" → tải `data/samples/danh-sach-giao-vien.xlsx` → xem trước → "Xác nhận và tạo tài khoản" → tải CSV mật khẩu.
+3. Mở cửa sổ ẩn danh, đăng nhập một giáo viên vừa tạo bằng mật khẩu tạm trong CSV → vào được.
+4. Thử tệp có email trùng hoặc vai trò lạ → dòng lỗi, nút xác nhận bị khoá. Dọn dữ liệu thử: xoá các tài khoản đã tạo hoặc `make seed`.
+5. `make test`, `make lint`. Swagger `/api/docs`, nhóm `admin` (`/admin/users/import`).
+
+> Lưu ý chạy test/samples ngoài Docker cần venv (host). Trong container (runtime, chỉ mount `backend/`) phải chép `data/` và `eval/` vào rồi đặt `PYTHONPATH=/app:/` — đây chỉ là cách chạy tạm khi chưa có venv host.

@@ -35,6 +35,7 @@ def test_committed_samples_are_what_the_generator_produces_now(db_session: Sessi
         build.FAULTY_XLSX,
         build.ATTENDANCE_CSV,
         build.ROSTER_XLSX,
+        build.TEACHER_XLSX,
     }
     for name, content in fresh.items():
         assert read_grid(name, sample_bytes(name)) == read_grid(name, content), name

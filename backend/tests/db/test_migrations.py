@@ -12,7 +12,8 @@ from app.core.config import get_settings
 pytestmark = pytest.mark.db
 
 # 15 bảng của DESIGN mục 5; settings, audit_logs (Giai đoạn 2), import_jobs và import_mappings
-# (Giai đoạn 4), regulation_documents (Giai đoạn 7), report_jobs (Giai đoạn 9) tính riêng.
+# (Giai đoạn 4), regulation_documents (Giai đoạn 7), report_jobs (Giai đoạn 9),
+# user_import_jobs (nhập giáo viên từ tệp) tính riêng.
 BUSINESS_TABLES = {
     "users",
     "school_years",
@@ -37,6 +38,7 @@ EXTRA_TABLES = {
     "import_mappings",
     "regulation_documents",
     "report_jobs",
+    "user_import_jobs",
 }
 EXPECTED_SETTING_KEYS = {
     "coef_midterm",

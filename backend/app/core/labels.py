@@ -105,6 +105,7 @@ LABELS_VI: dict[type[StrEnum], dict[StrEnum, str]] = {
         AuditAction.UPLOAD_REGULATION: "Tải văn bản quy định lên",
         AuditAction.UPDATE_REGULATION: "Đổi hiệu lực văn bản quy định",
         AuditAction.CREATE_USER: "Tạo tài khoản",
+        AuditAction.IMPORT_USERS: "Nhập giáo viên từ tệp",
         AuditAction.UPDATE_USER: "Sửa tài khoản",
         AuditAction.RESET_USER_PASSWORD: "Đặt lại mật khẩu",
         AuditAction.CHANGE_PASSWORD: "Đổi mật khẩu",

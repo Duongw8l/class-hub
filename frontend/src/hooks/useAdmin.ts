@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  confirmUserImport,
   copyAssignments,
   createClass,
   createUser,
@@ -8,6 +9,7 @@ import {
   fetchClassAssignments,
   fetchSchool,
   fetchTeachers,
+  previewUserImport,
   removeAssignment,
   removeStudent,
   resetPassword,
@@ -94,6 +96,15 @@ export function useUpdateUser() {
 
 export function useResetPassword() {
   return useMutation({ mutationFn: (id: number) => resetPassword(id) })
+}
+
+export function usePreviewUserImport() {
+  return useMutation({ mutationFn: previewUserImport })
+}
+
+export function useConfirmUserImport() {
+  const refresh = useRefreshAdmin()
+  return useMutation({ mutationFn: (jobId: string) => confirmUserImport(jobId), onSuccess: refresh })
 }
 
 export function useSaveSchoolYear() {
