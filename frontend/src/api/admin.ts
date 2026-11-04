@@ -1,5 +1,6 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut, apiUpload } from './client'
 import type { UserRole } from './auth'
+import { withYear } from './years'
 
 // Khớp schema của back-end: backend/app/auth/admin_schemas.py, backend/app/classes/admin_schemas.py.
 // Chỉ Admin gọi được các endpoint này (back-end kiểm lại ở mọi yêu cầu).
@@ -62,6 +63,19 @@ export interface SchoolYear {
   name: string
   start_date: string
   end_date: string
+  is_current: boolean
+}
+
+export interface SchoolYearInput {
+  name: string
+  start_date: string
+  end_date: string
+}
+
+export interface SchoolYearCreated {
+  school_year: SchoolYear
+  classes_created: number
+  students_promoted: number
 }
 
 export interface AdminClass {
@@ -74,8 +88,9 @@ export interface AdminClass {
 }
 
 export interface School {
-  school_year: SchoolYear | null
-  classes: AdminClass[]
+  school_year: SchoolYear | null // năm đang xem (mặc định năm hiện hành)
+  years: SchoolYear[] // mọi năm học, mới nhất trước
+  classes: AdminClass[] // các lớp của năm đang xem
   subject_count: number
 }
 
@@ -203,12 +218,13 @@ export function confirmUserImport(jobId: string): Promise<UserImportConfirm> {
   return apiPost<UserImportConfirm>(`/admin/users/import/${jobId}/confirm`, undefined)
 }
 
-export function fetchSchool(signal?: AbortSignal): Promise<School> {
-  return apiGet<School>('/admin/school', signal)
+export function fetchSchool(yearId: number | null, signal?: AbortSignal): Promise<School> {
+  return apiGet<School>(withYear('/admin/school', yearId), signal)
 }
 
-export function fetchTeachers(signal?: AbortSignal): Promise<Teacher[]> {
-  return apiGet<Teacher[]>('/admin/teachers', signal)
+// `homeroom_class` là lớp chủ nhiệm trong năm được chọn (mỗi năm mỗi GV chủ nhiệm một lớp).
+export function fetchTeachers(yearId: number | null, signal?: AbortSignal): Promise<Teacher[]> {
+  return apiGet<Teacher[]>(withYear('/admin/teachers', yearId), signal)
 }
 
 export function fetchSubjects(signal?: AbortSignal): Promise<Subject[]> {
@@ -216,18 +232,31 @@ export function fetchSubjects(signal?: AbortSignal): Promise<Subject[]> {
 }
 
 
-export function saveSchoolYear(body: {
-  name: string
-  start_date: string
-  end_date: string
-}): Promise<SchoolYear> {
+// Tạo năm học đầu tiên của trường (thành năm hiện hành).
+export function saveSchoolYear(body: SchoolYearInput): Promise<SchoolYear> {
   return apiPut<SchoolYear>('/admin/school-year', body)
+}
+
+// Tạo thêm một năm học; `rollover`: chép lớp từ năm trước và cho học sinh lên lớp (D-113).
+export function createSchoolYear(
+  body: SchoolYearInput & { make_current: boolean; rollover: boolean },
+): Promise<SchoolYearCreated> {
+  return apiPost<SchoolYearCreated>('/admin/school-years', body)
+}
+
+export function updateSchoolYear(id: number, body: SchoolYearInput): Promise<SchoolYear> {
+  return apiPatch<SchoolYear>(`/admin/school-years/${id}`, body)
+}
+
+export function setCurrentYear(id: number): Promise<SchoolYear> {
+  return apiPost<SchoolYear>(`/admin/school-years/${id}/current`, undefined)
 }
 
 export function createClass(body: {
   grade_level: number
   name: string
   homeroom_teacher_id: number | null
+  school_year_id: number | null // năm học của lớp; null là năm hiện hành
 }): Promise<AdminClass> {
   return apiPost<AdminClass>('/admin/classes', body)
 }

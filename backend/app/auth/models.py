@@ -28,6 +28,11 @@ class User(Base):
     # Tài khoản bị khoá không đăng nhập được và token cũ nhận 401 ngay (D-096); không xoá tài khoản
     # vì điểm, nhật ký, phân công còn tham chiếu tới người dùng.
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    # Đang dùng mật khẩu tạm do Admin cấp (tạo, đặt lại, nhập từ tệp): phải tự đặt mật khẩu mới
+    # trước khi dùng các chức năng khác (D-114). Tắt khi người dùng đổi mật khẩu.
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false"), default=False
+    )
     # Nhãn nhận diện, KHÔNG cấp quyền (quyền dạy vẫn suy từ teaching_assignments): bộ môn (chuyên
     # môn) và ghi chú tự do, giúp phân biệt hai giáo viên trùng tên. Cả hai đều tuỳ chọn.
     specialty_subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id"))

@@ -33,6 +33,7 @@ from app.analytics.queries import (
 from app.analytics.schemas import Period
 from app.assistant.llm import ToolSpec
 from app.auth.models import User
+from app.classes.years import resolve_year_id
 from app.core.authorize import FORBIDDEN_MESSAGE, AuthorizationError, authorize
 from app.core.enums import CommentResult, ConductLevel, RiskLevel
 from app.core.labels import label_vi
@@ -91,6 +92,10 @@ class ToolContext:
     subject_id: int | None = None
     semester: Period = "1"
     embedder: Embedder | None = None
+    # Năm học của phiên (D-113), lấy từ màn hình / ô chọn năm, KHÔNG từ tham số LLM điền
+    # (nguyên tắc 3).
+    # Dùng cho dữ liệu cấp khối; dữ liệu một lớp thì lớp đã gắn sẵn năm học.
+    school_year_id: int | None = None
 
     _savepoint: SessionTransaction | None = field(default=None, init=False, repr=False)
 
@@ -528,7 +533,11 @@ def _get_subject_scores(ctx: ToolContext, args: SubjectScoresArgs) -> ToolOutcom
 
 def _get_grade_overview(ctx: ToolContext, args: GradeOverviewArgs) -> ToolOutcome:
     authorize(ctx.session, ctx.user, grade_level=args.grade_level)  # chỉ BGH
-    classes = repo.classes_in_grade(ctx.session, args.grade_level)
+    # Năm của phiên; không có thì năm hiện hành.
+    year_id = ctx.school_year_id or resolve_year_id(ctx.session, None)
+    if year_id is None:
+        raise ToolFailure("not_found", "Trường chưa có năm học nào.")
+    classes = repo.classes_in_grade(ctx.session, args.grade_level, school_year_id=year_id)
     if not classes:
         raise ToolFailure("not_found", "Không có lớp nào ở khối này.")
     period = _period(ctx, args.semester)

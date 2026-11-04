@@ -1,6 +1,7 @@
 import type { AlertCounts, ProfileAlert } from './warning'
 import type { ClassRef } from './auth'
 import { apiGet } from './client'
+import { withYear } from './years'
 
 // Khớp schema của back-end (backend/app/analytics/schemas.py). Điểm là số thực trong JSON; giao diện
 // chỉ định dạng (lib/format.ts), không tính lại.
@@ -221,8 +222,16 @@ export function fetchSubjectScores(
   )
 }
 
-export function fetchGradeOverview(level: number, period: Period, signal?: AbortSignal) {
-  return apiGet<GradeOverview>(`/grades/${level}/overview?semester=${period}`, signal)
+export function fetchGradeOverview(
+  level: number,
+  period: Period,
+  yearId: number | null,
+  signal?: AbortSignal,
+) {
+  return apiGet<GradeOverview>(
+    withYear(`/grades/${level}/overview?semester=${period}`, yearId),
+    signal,
+  )
 }
 
 export function fetchStudentProfile(

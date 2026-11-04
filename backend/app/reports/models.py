@@ -1,9 +1,10 @@
 """Nhận xét và báo cáo. Bản do AI sinh luôn bắt đầu ở trạng thái draft (nguyên tắc 6).
 
-Mỗi bản ứng với một khoá `(type, scope, target_id, semester, subject_id)` và chỉ có một dòng cho mỗi
-khoá (hai chỉ mục duy nhất một phần, vì `subject_id` có thể NULL). `target_id` là id học sinh, lớp
-hoặc khối (số 10, 11, 12) tuỳ `scope`, nên không có khoá ngoại; `class_id` cho biết lớp của em hoặc
-lớp được báo cáo (NULL với báo cáo khối).
+Mỗi bản ứng với một khoá `(school_year_id, type, scope, target_id, semester, subject_id)` và chỉ có
+một dòng cho mỗi khoá (hai chỉ mục duy nhất một phần, vì `subject_id` có thể NULL). `target_id` là
+id học sinh, lớp hoặc khối (số 10, 11, 12) tuỳ `scope`, nên không có khoá ngoại; `class_id` cho
+biết lớp của em hoặc lớp được báo cáo (NULL với báo cáo khối). `school_year_id` tách các năm học:
+cùng một học sinh hay cùng khối 11 có báo cáo riêng cho mỗi năm (D-113).
 """
 
 from datetime import datetime
@@ -42,6 +43,7 @@ class Report(Base):
         # Một bản cho mỗi khoá. Tách hai chỉ mục vì NULL không bằng NULL trong chỉ mục duy nhất.
         Index(
             "uq_reports_key",
+            "school_year_id",
             "type",
             "scope",
             "target_id",
@@ -51,6 +53,7 @@ class Report(Base):
         ),
         Index(
             "uq_reports_key_subject",
+            "school_year_id",
             "type",
             "scope",
             "target_id",
@@ -62,6 +65,7 @@ class Report(Base):
     )
 
     id: Mapped[IntPk]
+    school_year_id: Mapped[int] = mapped_column(ForeignKey("school_years.id"))
     scope: Mapped[ReportScope] = mapped_column(enum_type(ReportScope, "scope"))
     target_id: Mapped[int] = mapped_column(Integer)
     type: Mapped[ReportType] = mapped_column(enum_type(ReportType, "type"))

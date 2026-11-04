@@ -170,8 +170,8 @@ def test_conduct_and_risk_values_are_checked(expect_rejected: Callable[..., None
     expect_rejected("INSERT INTO risk_alerts (class_student_id, level) VALUES (1, 'critical')")
 
 
-REPORT_COLUMNS = "scope, target_id, type, draft_text, semester, created_by"
-REPORT_VALUES = "'student', 1, 'contact_slip', 'Nháp', '1', 1"
+REPORT_COLUMNS = "school_year_id, scope, target_id, type, draft_text, semester, created_by"
+REPORT_VALUES = "1, 'student', 1, 'contact_slip', 'Nháp', '1', 1"
 
 
 def test_report_cannot_be_approved_without_an_approver(
@@ -189,7 +189,7 @@ def test_report_cannot_be_approved_without_an_approver(
     db_conn.execute(
         text(
             f"INSERT INTO reports ({REPORT_COLUMNS}, status, approved_by) "
-            f"VALUES ('student', 2, 'contact_slip', 'Nháp', '1', 1, 'approved', 1)"
+            f"VALUES (1, 'student', 2, 'contact_slip', 'Nháp', '1', 1, 'approved', 1)"
         )
     )
 
@@ -199,7 +199,7 @@ def test_report_semester_and_manual_flag_are_checked(
 ) -> None:
     expect_rejected(
         f"INSERT INTO reports ({REPORT_COLUMNS}) "
-        "VALUES ('student', 1, 'contact_slip', 'Nháp', '3', 1)"
+        "VALUES (1, 'student', 1, 'contact_slip', 'Nháp', '3', 1)"
     )
     # Chờ giáo viên tự viết thì không thể đã duyệt.
     expect_rejected(
@@ -222,13 +222,38 @@ def test_report_has_one_row_per_key_with_or_without_a_subject(
     def comment(semester: str, subject_id: int) -> str:
         return (
             f"INSERT INTO reports ({REPORT_COLUMNS}, subject_id) VALUES "
-            f"('student', 1, 'subject_comment', 'Nháp', '{semester}', 1, {subject_id})"
+            f"(1, 'student', 1, 'subject_comment', 'Nháp', '{semester}', 1, {subject_id})"
         )
 
     db_conn.execute(text(comment("1", subject)))
     expect_rejected(comment("1", subject))  # trùng khoá có môn
     db_conn.execute(text(comment("1", other)))  # môn khác thì được
     db_conn.execute(text(comment("2", subject)))  # kỳ khác thì được
+
+
+def test_same_report_key_is_allowed_once_per_school_year(
+    db_conn: Connection, expect_rejected: Callable[..., None]
+) -> None:
+    # D-113: cùng một em, cùng loại và kỳ, nhưng năm học khác là một bản khác.
+    other_year = db_conn.execute(
+        text(
+            "INSERT INTO school_years (name, start_date, end_date) "
+            "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id"
+        )
+    ).scalar_one()
+    plain = f"INSERT INTO reports ({REPORT_COLUMNS}) VALUES ({REPORT_VALUES})"
+    db_conn.execute(text(plain))
+    db_conn.execute(text(plain.replace("VALUES (1,", f"VALUES ({other_year},")))
+    expect_rejected(plain)
+
+
+def test_only_one_school_year_can_be_current(
+    db_conn: Connection, expect_rejected: Callable[..., None]
+) -> None:
+    expect_rejected(
+        "INSERT INTO school_years (name, start_date, end_date, is_current) "
+        "VALUES ('2027-2028', '2027-09-05', '2028-05-31', true)"
+    )
 
 
 def test_report_job_semester_and_status_are_checked(

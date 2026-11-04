@@ -9,6 +9,7 @@ import {
 import type { Period } from '../api/analytics'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
+import { useSelectedYear } from '../years/context'
 
 // Lỗi 4xx (hết phiên, không có quyền, không có dữ liệu) không đổi khi thử lại; chỉ thử lại lỗi mạng
 // và 5xx (cùng quy tắc với useAssignments).
@@ -39,9 +40,10 @@ export function useSubjectScores(classId: number, subjectId: number, semester: 1
 
 export function useGradeOverview(level: number, period: Period) {
   const { token } = useAuth()
+  const { yearId } = useSelectedYear() // so sánh các lớp của khối trong năm đang chọn (D-113)
   return useQuery({
-    queryKey: ['grade-overview', token, level, period],
-    queryFn: ({ signal }) => fetchGradeOverview(level, period, signal),
+    queryKey: ['grade-overview', token, level, period, yearId],
+    queryFn: ({ signal }) => fetchGradeOverview(level, period, yearId, signal),
     enabled: token !== null && Number.isInteger(level),
     retry,
   })

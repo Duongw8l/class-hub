@@ -69,6 +69,9 @@ export interface ReportTarget {
   classId?: number
   subjectId?: number
   gradeLevel?: number
+  // Năm học của báo cáo khối (D-113); null hoặc bỏ trống là năm hiện hành. Bản theo lớp dùng năm
+  // của lớp nên không cần.
+  schoolYearId?: number | null
 }
 
 function targetBody(target: ReportTarget): Record<string, unknown> {
@@ -78,6 +81,8 @@ function targetBody(target: ReportTarget): Record<string, unknown> {
     ...(target.classId !== undefined && { class_id: target.classId }),
     ...(target.subjectId !== undefined && { subject_id: target.subjectId }),
     ...(target.gradeLevel !== undefined && { grade_level: target.gradeLevel }),
+    ...(target.gradeLevel !== undefined &&
+      target.schoolYearId != null && { school_year_id: target.schoolYearId }),
   }
 }
 

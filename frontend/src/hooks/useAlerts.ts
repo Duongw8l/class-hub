@@ -3,6 +3,7 @@ import { fetchClassAlerts, fetchSchoolAlerts, updateAlert } from '../api/warning
 import type { RiskLevel, TeacherStatus } from '../api/warning'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
+import { useSelectedYear } from '../years/context'
 
 function retry(failureCount: number, error: Error): boolean {
   return failureCount < 1 && !(error instanceof ApiError && error.status < 500)
@@ -20,9 +21,10 @@ export function useClassAlerts(classId: number, enabled = true) {
 
 export function useSchoolAlerts(level: RiskLevel, enabled = true) {
   const { token } = useAuth()
+  const { yearId } = useSelectedYear() // cảnh báo toàn trường của năm đang chọn (D-113)
   return useQuery({
-    queryKey: ['school-alerts', token, level],
-    queryFn: ({ signal }) => fetchSchoolAlerts(level, signal),
+    queryKey: ['school-alerts', token, level, yearId],
+    queryFn: ({ signal }) => fetchSchoolAlerts(level, yearId, signal),
     enabled: enabled && token !== null,
     retry,
   })

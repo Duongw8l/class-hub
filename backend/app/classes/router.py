@@ -8,8 +8,14 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.auth.audit import record_access
 from app.auth.deps import CurrentUser
-from app.classes.schemas import AssignmentsResponse, StudentOut, StudentWithGuardianOut
-from app.classes.service import class_exists, get_assignments, list_students
+from app.classes.schemas import (
+    AssignmentsResponse,
+    SchoolYearOut,
+    StudentOut,
+    StudentWithGuardianOut,
+)
+from app.classes.service import class_exists, get_assignments, list_students, school_years
+from app.classes.years import SchoolYearQuery
 from app.core.authorize import authorize
 from app.core.db import DbSession
 from app.core.enums import AuditAction
@@ -22,8 +28,19 @@ router = APIRouter(tags=["classes"])
     response_model=AssignmentsResponse,
     summary="Lớp chủ nhiệm và lớp-môn được phân công của tôi",
 )
-def my_assignments(user: CurrentUser, session: DbSession) -> AssignmentsResponse:
-    return get_assignments(session, user)
+def my_assignments(
+    user: CurrentUser, session: DbSession, school_year_id: SchoolYearQuery = None
+) -> AssignmentsResponse:
+    return get_assignments(session, user, school_year_id)
+
+
+@router.get(
+    "/school-years",
+    response_model=list[SchoolYearOut],
+    summary="Các năm học (mới nhất trước), để chọn năm cần xem",
+)
+def list_school_years(user: CurrentUser, session: DbSession) -> list[SchoolYearOut]:
+    return school_years(session)
 
 
 @router.get(

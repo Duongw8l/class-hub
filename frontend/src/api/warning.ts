@@ -1,4 +1,5 @@
 import { apiGet, apiPatch } from './client'
+import { withYear } from './years'
 
 // Khớp schema của back-end (backend/app/warning/schemas.py). Cảnh báo chỉ là gợi ý để giáo viên
 // quyết định; không tự gửi tới học sinh hay phụ huynh.
@@ -67,8 +68,8 @@ export function fetchClassAlerts(classId: number, signal?: AbortSignal) {
   return apiGet<ClassAlerts>(`/classes/${classId}/alerts`, signal)
 }
 
-export function fetchSchoolAlerts(level: RiskLevel, signal?: AbortSignal) {
-  return apiGet<SchoolAlerts>(`/alerts?level=${level}`, signal)
+export function fetchSchoolAlerts(level: RiskLevel, yearId: number | null, signal?: AbortSignal) {
+  return apiGet<SchoolAlerts>(withYear(`/alerts?level=${level}`, yearId), signal)
 }
 
 export function updateAlert(alertId: number, status: TeacherStatus) {

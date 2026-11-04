@@ -1,17 +1,20 @@
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { AdminUser } from '../../api/admin'
 import type { UserRole } from '../../api/auth'
-import { useResetPassword, useUpdateUser } from '../../hooks/useAdmin'
-import { ErrorAlert } from './shared'
 import { ROLE_OPTIONS, roleText } from './roles'
-
-type Action = { userId: number; kind: 'lock' | 'unlock' | 'reset' }
+import type { UserAction } from './UserActionDialog'
 
 interface UserTableProps {
   users: AdminUser[]
   selfId: number
-  onEdit: (user: AdminUser) => void
-  onPasswordIssued: (user: AdminUser, password: string) => void
+  // 'active': Sửa, Đặt lại mật khẩu, Khoá. 'locked': Sửa, Mở khoá.
+  variant: 'active' | 'locked'
+  onAction: (action: UserAction, user: AdminUser) => void
+  // Tiền tố id cho ô lọc, để hai bảng trên cùng trang không trùng id.
+  idPrefix: string
+  // Nút đặt cạnh ô lọc Vai trò (ví dụ chuyển sang danh sách đã khoá).
+  extraControl?: ReactNode
 }
 
 function dutiesText(user: AdminUser): string {
@@ -22,75 +25,66 @@ function dutiesText(user: AdminUser): string {
   return parts.length > 0 ? parts.join(', ') : 'Chưa phân công'
 }
 
-// Danh sách tài khoản với bộ lọc. Khoá và đặt lại mật khẩu cần xác nhận ngay trên dòng.
-export function UserTable({ users, selfId, onEdit, onPasswordIssued }: UserTableProps) {
-  const update = useUpdateUser()
-  const reset = useResetPassword()
+// Danh sách tài khoản với bộ lọc. Mọi thao tác (sửa, đặt lại mật khẩu, khoá, mở khoá) mở hộp thoại
+// riêng ở trang cha; bảng không tự gọi API.
+export function UserTable({
+  users,
+  selfId,
+  variant,
+  onAction,
+  idPrefix,
+  extraControl,
+}: UserTableProps) {
   const [text, setText] = useState('')
   const [role, setRole] = useState<UserRole | ''>('')
-  const [status, setStatus] = useState<'' | 'active' | 'locked'>('')
-  const [action, setAction] = useState<Action | null>(null)
 
   const shown = useMemo(() => {
     const needle = text.trim().toLowerCase()
     return users.filter(
       (user) =>
         (role === '' || user.role === role) &&
-        (status === '' || user.is_active === (status === 'active')) &&
         (needle === '' ||
           user.full_name.toLowerCase().includes(needle) ||
           user.email.toLowerCase().includes(needle) ||
           (user.specialty?.toLowerCase().includes(needle) ?? false) ||
           (user.note?.toLowerCase().includes(needle) ?? false)),
     )
-  }, [users, text, role, status])
+  }, [users, text, role])
 
-  const busy = update.isPending || reset.isPending
-  const error = update.error ?? reset.error
-
-  function run(user: AdminUser, current: Action) {
-    if (current.kind === 'reset') {
-      reset.mutate(user.id, {
-        onSuccess: (data) => {
-          setAction(null)
-          onPasswordIssued(user, data.temporary_password)
-        },
-      })
-    } else {
-      update.mutate(
-        { id: user.id, body: { is_active: current.kind === 'unlock' } },
-        { onSuccess: () => setAction(null) },
-      )
-    }
-  }
-
-  function ask(user: AdminUser, kind: Action['kind']) {
-    update.reset()
-    reset.reset()
-    setAction({ userId: user.id, kind })
+  if (users.length === 0) {
+    return (
+      <div className="space-y-4">
+        {extraControl}
+        <p className="text-sm text-slate-600">
+          {variant === 'locked'
+            ? 'Chưa có tài khoản nào bị khoá.'
+            : 'Chưa có tài khoản nào đang hoạt động.'}
+        </p>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label htmlFor="loc-ten" className="label">
-            Tìm theo tên hoặc email
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-full sm:w-80">
+          <label htmlFor={`${idPrefix}-loc-ten`} className="label">
+            Tìm theo tên, email, môn hoặc ghi chú
           </label>
           <input
-            id="loc-ten"
+            id={`${idPrefix}-loc-ten`}
             type="search"
             value={text}
             onChange={(event) => setText(event.target.value)}
             className="input mt-1"
           />
         </div>
-        <div>
-          <label htmlFor="loc-vai-tro" className="label">
+        <div className="w-full sm:w-80">
+          <label htmlFor={`${idPrefix}-loc-vai-tro`} className="label">
             Vai trò
           </label>
           <select
-            id="loc-vai-tro"
+            id={`${idPrefix}-loc-vai-tro`}
             value={role}
             onChange={(event) => setRole(event.target.value as UserRole | '')}
             className="input mt-1"
@@ -103,21 +97,7 @@ export function UserTable({ users, selfId, onEdit, onPasswordIssued }: UserTable
             ))}
           </select>
         </div>
-        <div>
-          <label htmlFor="loc-trang-thai" className="label">
-            Trạng thái
-          </label>
-          <select
-            id="loc-trang-thai"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as '' | 'active' | 'locked')}
-            className="input mt-1"
-          >
-            <option value="">Tất cả</option>
-            <option value="active">Đang hoạt động</option>
-            <option value="locked">Bị khoá</option>
-          </select>
-        </div>
+        {extraControl}
       </div>
 
       <p aria-live="polite" className="text-sm text-slate-500">
@@ -137,9 +117,6 @@ export function UserTable({ users, selfId, onEdit, onPasswordIssued }: UserTable
               <th scope="col" className="px-3 py-2 font-medium">
                 Công việc
               </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Trạng thái
-              </th>
               <th scope="col" className="py-2 pl-3 font-medium">
                 <span className="sr-only">Thao tác</span>
               </th>
@@ -147,7 +124,6 @@ export function UserTable({ users, selfId, onEdit, onPasswordIssued }: UserTable
           </thead>
           <tbody className="divide-y divide-slate-100 align-top">
             {shown.map((user) => {
-              const confirming = action?.userId === user.id ? action : null
               const self = user.id === selfId
               return (
                 <tr key={user.id}>
@@ -158,90 +134,58 @@ export function UserTable({ users, selfId, onEdit, onPasswordIssued }: UserTable
                     </span>
                     <span className="block text-xs text-slate-500">{user.email}</span>
                     {user.note && (
-                      <span className="block text-xs italic text-slate-500">{user.note}</span>
+                      // Ghi chú dài (danh sách lớp) xuống dòng thay vì kéo giãn cả cột.
+                      <span className="block max-w-md text-xs whitespace-normal text-slate-500 italic">
+                        {user.note}
+                      </span>
                     )}
                   </th>
                   <td className="px-3 py-2">
                     {roleText(user.role, user.role_label, user.specialty)}
                   </td>
                   <td className="px-3 py-2">{dutiesText(user)}</td>
-                  <td className="px-3 py-2">
-                    <span className={user.is_active ? 'badge-good' : 'badge-fail'}>
-                      {user.is_active ? 'Hoạt động' : 'Bị khoá'}
-                    </span>
-                  </td>
                   <td className="py-2 pl-3">
-                    {confirming ? (
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="max-w-xs text-xs text-slate-600">
-                          {confirming.kind === 'reset' &&
-                            'Mật khẩu hiện tại sẽ không dùng được nữa. Mật khẩu mới chỉ hiện một lần.'}
-                          {confirming.kind === 'lock' &&
-                            `Người này sẽ bị đăng xuất ngay và không đăng nhập được.${
-                              user.assignment_count > 0 || user.homeroom_class
-                                ? ' Họ còn phân công; hãy giao lại cho giáo viên khác.'
-                                : ''
-                            }`}
-                          {confirming.kind === 'unlock' && 'Người này sẽ đăng nhập lại được.'}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => run(user, confirming)}
-                          className="btn-primary btn-sm"
-                        >
-                          {busy ? 'Đang lưu…' : 'Xác nhận'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setAction(null)}
-                          className="btn-secondary px-3 py-1.5"
-                        >
-                          Huỷ
-                        </button>
-                      </span>
-                    ) : (
-                      <span className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onEdit(user)}
-                          aria-label={`Sửa ${user.full_name}`}
-                          className="btn-secondary px-3 py-1.5"
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => ask(user, 'reset')}
-                          aria-label={`Đặt lại mật khẩu của ${user.full_name}`}
-                          className="btn-secondary px-3 py-1.5"
-                        >
-                          Đặt lại mật khẩu
-                        </button>
-                        {user.is_active ? (
+                    <span className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onAction('edit', user)}
+                        aria-label={`Sửa ${user.full_name}`}
+                        className="btn-secondary px-3 py-1.5"
+                      >
+                        Sửa
+                      </button>
+                      {variant === 'active' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onAction('reset', user)}
+                            aria-label={`Đặt lại mật khẩu của ${user.full_name}`}
+                            className="btn-secondary px-3 py-1.5"
+                          >
+                            Đặt lại mật khẩu
+                          </button>
                           <button
                             type="button"
                             disabled={self}
                             title={self ? 'Không thể khoá chính mình' : undefined}
-                            onClick={() => ask(user, 'lock')}
+                            onClick={() => onAction('lock', user)}
                             aria-label={`Khoá ${user.full_name}`}
-                            className="btn-secondary px-3 py-1.5"
+                            className="btn-secondary px-3 py-1.5 text-red-700"
                           >
                             Khoá
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => ask(user, 'unlock')}
-                            aria-label={`Mở khoá ${user.full_name}`}
-                            className="btn-secondary px-3 py-1.5"
-                          >
-                            Mở khoá
-                          </button>
-                        )}
-                      </span>
-                    )}
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onAction('unlock', user)}
+                          aria-label={`Mở khoá ${user.full_name}`}
+                          className="btn-secondary px-3 py-1.5"
+                        >
+                          Mở khoá
+                        </button>
+                      )}
+                    </span>
                   </td>
                 </tr>
               )
@@ -252,7 +196,6 @@ export function UserTable({ users, selfId, onEdit, onPasswordIssued }: UserTable
       {shown.length === 0 && (
         <p className="text-sm text-slate-600">Không có tài khoản nào khớp bộ lọc.</p>
       )}
-      {error && <ErrorAlert error={error} />}
     </div>
   )
 }

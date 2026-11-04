@@ -21,6 +21,7 @@ from app.analytics.schemas import (
 )
 from app.auth.audit import record_access
 from app.auth.deps import CurrentUser
+from app.classes.years import SchoolYearQuery, resolve_year
 from app.core.authorize import authorize
 from app.core.db import DbSession
 from app.core.enums import AuditAction
@@ -152,10 +153,15 @@ def student_profile(
     summary="So sánh các lớp trong một khối (chỉ BGH)",
 )
 def grade_overview(
-    level: int, user: CurrentUser, session: DbSession, semester: PeriodQuery = "1"
+    level: int,
+    user: CurrentUser,
+    session: DbSession,
+    semester: PeriodQuery = "1",
+    school_year_id: SchoolYearQuery = None,
 ) -> GradeOverviewOut:
     authorize(session, user, grade_level=level)
-    classes = repo.classes_in_grade(session, level)
+    year = resolve_year(session, school_year_id)
+    classes = repo.classes_in_grade(session, level, school_year_id=year.id)
     if not classes:
         raise _not_found("Không có khối này.")
     # Chỉ số liệu gộp theo lớp, không có tên học sinh nên không ghi nhật ký truy cập hồ sơ.

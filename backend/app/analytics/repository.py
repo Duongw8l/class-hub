@@ -84,10 +84,11 @@ def get_class(session: Session, class_id: int) -> ClassInfo | None:
     return None if row is None else ClassInfo(row[0], row[1], row[2])
 
 
-def classes_in_grade(session: Session, grade_level: int) -> list[ClassInfo]:
+def classes_in_grade(session: Session, grade_level: int, *, school_year_id: int) -> list[ClassInfo]:
+    """Các lớp của một khối TRONG một năm học (D-113): so sánh khối không trộn các năm."""
     rows = session.execute(
         select(SchoolClass.id, SchoolClass.name, SchoolClass.grade_level)
-        .where(SchoolClass.grade_level == grade_level)
+        .where(SchoolClass.grade_level == grade_level, SchoolClass.school_year_id == school_year_id)
         .order_by(SchoolClass.name)
     ).all()
     return [ClassInfo(r[0], r[1], r[2]) for r in rows]

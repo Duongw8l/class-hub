@@ -15,6 +15,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,13 +24,25 @@ from app.core.enums import AssessmentType
 
 
 class SchoolYear(Base):
+    """Năm học. Nhiều năm cùng tồn tại (D-113); đúng một năm là năm hiện hành (mặc định khi xem)."""
+
     __tablename__ = "school_years"
-    __table_args__ = (CheckConstraint("start_date < end_date", name="dates_order"),)
+    __table_args__ = (
+        CheckConstraint("start_date < end_date", name="dates_order"),
+        # Nhiều nhất một năm hiện hành (chỉ mục duy nhất một phần trên các dòng is_current).
+        Index(
+            "uq_school_years_current",
+            "is_current",
+            unique=True,
+            postgresql_where=text("is_current"),
+        ),
+    )
 
     id: Mapped[IntPk]
     name: Mapped[str] = mapped_column(String(20), unique=True)  # ví dụ 2026-2027
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[date] = mapped_column(Date)
+    is_current: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
 
 
 class SchoolClass(Base):

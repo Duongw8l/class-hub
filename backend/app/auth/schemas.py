@@ -19,6 +19,8 @@ class UserOut(BaseModel):
     email: str
     full_name: str
     role: UserRole
+    # true: đang dùng mật khẩu tạm, giao diện chỉ cho đặt mật khẩu mới (D-114).
+    must_change_password: bool = False
 
 
 class LoginResponse(BaseModel):

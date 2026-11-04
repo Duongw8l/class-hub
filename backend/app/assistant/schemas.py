@@ -16,6 +16,9 @@ class ChatIn(BaseModel):
     class_id: int | None = None
     subject_id: int | None = None
     semester: Period | None = None
+    # Năm học đang chọn trên thanh trên cùng (D-113); do giao diện gửi, không phải LLM. Bỏ trống là
+    # năm hiện hành; khi đang mở một lớp thì năm của lớp đó được dùng.
+    school_year_id: int | None = None
 
     @field_validator("question")
     @classmethod

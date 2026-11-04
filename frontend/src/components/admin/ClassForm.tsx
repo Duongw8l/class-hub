@@ -7,8 +7,9 @@ import { TeacherSelect } from './TeacherSelect'
 
 const GRADES = [10, 11, 12]
 
-// Thêm lớp vào năm học. Tên lớp phải bắt đầu bằng số khối (ví dụ 11A9) và không trùng lớp khác.
-export function ClassForm({ teachers }: { teachers: Teacher[] }) {
+// Thêm lớp vào năm học đang xem (D-113). Tên lớp phải bắt đầu bằng số khối (ví dụ 11A9) và không
+// trùng lớp khác trong cùng năm.
+export function ClassForm({ teachers, yearId }: { teachers: Teacher[]; yearId: number }) {
   const mutation = useCreateClass()
   const [grade, setGrade] = useState(10)
   const [name, setName] = useState('')
@@ -23,7 +24,7 @@ export function ClassForm({ teachers }: { teachers: Teacher[] }) {
     event.preventDefault()
     if (!canSubmit) return
     mutation.mutate(
-      { grade_level: grade, name: trimmed, homeroom_teacher_id: teacherId },
+      { grade_level: grade, name: trimmed, homeroom_teacher_id: teacherId, school_year_id: yearId },
       {
         onSuccess: (created) => {
           setAdded(`Đã thêm lớp ${created.name}.`)

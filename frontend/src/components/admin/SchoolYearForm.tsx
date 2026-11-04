@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { SchoolYear } from '../../api/admin'
-import { useSaveSchoolYear } from '../../hooks/useAdmin'
+import { useSaveSchoolYear, useUpdateSchoolYear } from '../../hooks/useAdmin'
 import { ErrorAlert, SuccessNote } from './shared'
 
 // Năm học bắt đầu vào tháng 9: từ tháng 8 trở đi là năm học của năm nay, trước đó là của năm ngoái.
@@ -11,10 +11,13 @@ function defaultYear(): { name: string; start: string; end: string } {
   return { name: `${first}-${first + 1}`, start: `${first}-09-05`, end: `${first + 1}-05-31` }
 }
 
-// Năm học duy nhất của trường (D-098): tạo lần đầu hoặc sửa. Không đổi được khoảng ngày để loại bỏ các
-// ngày đã có điểm danh (back-end từ chối và nêu lý do).
+// Sửa năm học đang xem, hoặc tạo năm học đầu tiên của trường (D-113). Không đổi được khoảng ngày để
+// loại bỏ các ngày đã có điểm danh của năm đó, và không được chồng ngày với năm khác (back-end từ
+// chối và nêu lý do).
 export function SchoolYearForm({ year }: { year: SchoolYear | null }) {
-  const mutation = useSaveSchoolYear()
+  const create = useSaveSchoolYear()
+  const update = useUpdateSchoolYear()
+  const mutation = year === null ? create : update
   const fallback = defaultYear()
   const [name, setName] = useState(year?.name ?? fallback.name)
   const [start, setStart] = useState(year?.start_date ?? fallback.start)
@@ -27,7 +30,9 @@ export function SchoolYearForm({ year }: { year: SchoolYear | null }) {
   function submit(event: FormEvent) {
     event.preventDefault()
     if (valid && dirty && !mutation.isPending) {
-      mutation.mutate({ name: name.trim(), start_date: start, end_date: end })
+      const body = { name: name.trim(), start_date: start, end_date: end }
+      if (year === null) create.mutate(body)
+      else update.mutate({ id: year.id, body })
     }
   }
 

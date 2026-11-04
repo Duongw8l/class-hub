@@ -34,6 +34,7 @@ export interface AssistantScreen {
   classId: number | null
   subjectId: number | null
   semester: Period
+  schoolYearId: number | null // năm đang chọn ở thanh trên cùng; null là năm hiện hành
 }
 
 export const MAX_QUESTION_LENGTH = 1000
@@ -44,6 +45,7 @@ export function askAssistant(question: string, screen: AssistantScreen): Promise
     class_id: screen.classId,
     subject_id: screen.classId === null ? null : screen.subjectId,
     semester: screen.semester,
+    school_year_id: screen.schoolYearId,
   })
 }
 

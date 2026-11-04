@@ -22,10 +22,12 @@ def _unauthenticated() -> HTTPException:
     )
 
 
-def get_current_user(
+def get_authenticated_user(
     session: DbSession,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> User:
+    """Người đăng nhập, KỂ CẢ khi còn đang dùng mật khẩu tạm. Chỉ dùng cho các endpoint cần để đặt
+    mật khẩu mới (đổi mật khẩu, thông tin của chính mình); mọi endpoint khác dùng CurrentUser."""
     if credentials is None:
         raise _unauthenticated()
     try:
@@ -36,6 +38,19 @@ def get_current_user(
     user = session.get(User, user_id)
     if user is None or not user.is_active:
         raise _unauthenticated()
+    return user
+
+
+AuthenticatedUser = Annotated[User, Depends(get_authenticated_user)]
+
+
+def get_current_user(user: AuthenticatedUser) -> User:
+    # Mật khẩu tạm do Admin biết: chưa đặt mật khẩu riêng thì chưa được dùng dữ liệu (D-114).
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn đang dùng mật khẩu tạm. Hãy đặt mật khẩu mới trước khi tiếp tục.",
+        )
     return user
 
 

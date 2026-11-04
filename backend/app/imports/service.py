@@ -18,6 +18,7 @@ from app.analytics import repository as analytics_repo
 from app.analytics.config import load_config
 from app.auth.audit import record_access
 from app.auth.models import User
+from app.classes.years import year_of_class
 from app.core.authorize import AuthorizationError, authorize_admin, authorize_write
 from app.core.enums import (
     AssessmentType,
@@ -137,11 +138,15 @@ def _validate(
     fields: Sequence[FieldSpec],
 ) -> list[RowResult]:
     if request.kind is ImportKind.ROSTER:
+        year_id = year_of_class(session, request.class_id)
+        assert year_id is not None  # lớp đã được kiểm là có thật trước khi xem trước
         return roster.validate_roster(
             table,
             mapping,
             class_id=request.class_id,
-            memberships=roster.class_memberships(session, roster.codes_in(table, mapping)),
+            memberships=roster.class_memberships(
+                session, roster.codes_in(table, mapping), school_year_id=year_id
+            ),
         )
     students = repo.students_by_code(session, request.class_id)
     if request.kind is ImportKind.ATTENDANCE:

@@ -29,6 +29,7 @@ from app.assistant.llm import LLMError, LLMProvider
 from app.assistant.scope import load_roster
 from app.auth.audit import record_access
 from app.auth.models import User
+from app.classes.years import year_of_class
 from app.core.authorize import AuthorizationError
 from app.core.db import get_session_factory
 from app.core.enums import AuditAction, ReportJobStatus, ReportScope
@@ -50,6 +51,13 @@ ERROR_LLM = "llm_error"
 ERROR_UNSAFE = "unsafe_payload"
 ERROR_FORBIDDEN = "forbidden"
 ERROR_INTERNAL = "internal_error"
+
+
+def _class_year(session: Session, class_id: int) -> int:
+    """Năm học của lớp (D-113): bản nhận xét của học sinh gắn vào năm của lớp em học."""
+    year_id = year_of_class(session, class_id)
+    assert year_id is not None  # lớp đã được tra là có thật trước khi gọi
+    return year_id
 
 
 def _lock_key(class_id: int, report_type: str, semester: str, subject_id: int | None) -> int:
@@ -96,6 +104,7 @@ def start_class_job(
         semester=body.semester,
         subject_id=body.subject_id,
         student_ids=[s.student_id for s in students],
+        school_year_id=_class_year(session, info.id),
     )
     pending = [s for s in students if s.student_id not in existing]
     job = ReportJob(
@@ -190,12 +199,14 @@ def _run(session: Session, job_id: int, provider: LLMProvider) -> None:
     roster = load_roster(session, [info.id])
     who = {r.student_id: r for r in roster}
     students = repo.class_students(session, info.id)
+    year_id = _class_year(session, info.id)
     existing = repository.reports_for_students(
         session,
         report_type=job.type,
         semester=job.semester,
         subject_id=job.subject_id,
         student_ids=[s.student_id for s in students],
+        school_year_id=year_id,
     )
     pending = [s for s in students if s.student_id not in existing]
     job.total = job.done + len(pending)
@@ -203,7 +214,13 @@ def _run(session: Session, job_id: int, provider: LLMProvider) -> None:
 
     def save(outcome: Outcome) -> None:
         key = ReportKey(
-            job.type, ReportScope.STUDENT, outcome.key, job.semester, job.subject_id, info.id
+            job.type,
+            ReportScope.STUDENT,
+            outcome.key,
+            job.semester,
+            job.subject_id,
+            info.id,
+            year_id,
         )
         store_outcome(session, key, outcome, user_id=user.id, model=provider.model)
         job.done += 1
