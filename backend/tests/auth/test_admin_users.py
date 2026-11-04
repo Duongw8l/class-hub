@@ -431,6 +431,8 @@ def test_a_second_admin_can_lock_the_first_but_never_the_last_one_left(
     created = create(api_client, headers, email="admin2@example.com", role="admin").json()
     second = {"Authorization": f"Bearer {create_access_token(created['user']['id'])[0]}"}
     first = user_id(db_session, ADMIN)
+    # Tài khoản mới phải tự đặt mật khẩu trước khi dùng (D-114).
+    assert change(api_client, second, created["temporary_password"], "Mat-khau-moi-2026").is_success
 
     # Admin thứ hai khoá Admin thứ nhất: được. Khi đó Admin thứ hai là người cuối, không tự khoá.
     assert (

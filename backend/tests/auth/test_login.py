@@ -25,9 +25,9 @@ def test_login_returns_a_usable_token_and_the_user_without_password_hash(
     assert set(body) == {"access_token", "token_type", "expires_in", "user"}
     assert body["token_type"] == "bearer"
     assert body["expires_in"] == 7200
-    assert set(body["user"]) == {"id", "email", "full_name", "role"}
+    assert set(body["user"]) == {"id", "email", "full_name", "role", "must_change_password"}
     assert body["user"]["role"] == "teacher"
-    assert "password" not in response.text
+    assert "password_hash" not in response.text and DEV_PASSWORD not in response.text
     assert decode_access_token(body["access_token"]) == body["user"]["id"]
 
     me = api_client.get(

@@ -1,15 +1,17 @@
-"""POST /api/v1/auth/login và POST /api/v1/auth/change-password.
+"""POST /api/v1/auth/login, GET /api/v1/auth/me và POST /api/v1/auth/change-password.
 
 NGOẠI LỆ nguyên tắc 4 của CLAUDE.md: `login` công khai, không qua authorize() vì chưa có phiên;
 chỉ trả token và thông tin của chính người đăng nhập (D-042). `change-password` chỉ đụng tài khoản
-của chính người gọi, không có phạm vi lớp/môn nào để kiểm (D-097).
+của chính người gọi, không có phạm vi lớp/môn nào để kiểm (D-097). `me` và `change-password` vẫn
+mở khi người dùng còn dùng mật khẩu tạm, để họ đặt được mật khẩu mới (D-114); mọi endpoint khác
+trả 403 cho tới lúc đó.
 """
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.auth import admin_service
 from app.auth.admin_schemas import ChangePasswordIn, MessageOut
-from app.auth.deps import CurrentUser
+from app.auth.deps import AuthenticatedUser
 from app.auth.schemas import LoginRequest, LoginResponse, UserOut
 from app.auth.service import authenticate
 from app.auth.tokens import create_access_token
@@ -34,12 +36,19 @@ def login(body: LoginRequest, session: DbSession) -> LoginResponse:
     )
 
 
+@router.get("/me", response_model=UserOut, summary="Thông tin tài khoản của chính mình")
+def me(user: AuthenticatedUser) -> UserOut:
+    return UserOut.model_validate(user)
+
+
 @router.post(
     "/change-password",
     response_model=MessageOut,
     summary="Đổi mật khẩu của chính mình (mọi vai trò)",
 )
-def change_password(body: ChangePasswordIn, user: CurrentUser, session: DbSession) -> MessageOut:
+def change_password(
+    body: ChangePasswordIn, user: AuthenticatedUser, session: DbSession
+) -> MessageOut:
     try:
         admin_service.change_password(session, user, body)
     except admin_service.WrongPassword:

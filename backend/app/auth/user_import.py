@@ -453,6 +453,7 @@ def confirm_job(session: Session, admin: User, job_id: uuid.UUID) -> UserImportC
                 role=UserRole(record["role"]),
                 password_hash=hash_password(password),
                 is_active=True,
+                must_change_password=True,  # D-114
                 specialty_subject_id=record.get("specialty_subject_id"),
                 note=record.get("note"),
             )

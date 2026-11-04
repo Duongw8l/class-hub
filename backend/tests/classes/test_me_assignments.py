@@ -94,5 +94,5 @@ def test_user_part_never_contains_the_password_hash(
 ) -> None:
     body = fetch(api_client, auth_headers, "gv.toan.10@example.com")
 
-    assert set(body["user"]) == {"id", "email", "full_name", "role"}  # type: ignore[arg-type]
+    assert set(body["user"]) == {"id", "email", "full_name", "role", "must_change_password"}  # type: ignore[arg-type]
     assert set(body) == {"user", "school_year", "homeroom_classes", "teaching", "grades"}

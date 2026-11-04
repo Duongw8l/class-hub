@@ -163,6 +163,7 @@ def create_user(session: Session, admin: User, data: UserCreateIn) -> CreatedUse
         role=data.role,
         password_hash=hash_password(password),
         is_active=True,
+        must_change_password=True,  # mật khẩu tạm: người dùng phải tự đặt lại (D-114)
         # "Giáo viên <môn>": chỉ giáo viên mới có môn; vai trò khác thì bỏ qua môn gửi lên.
         specialty_subject_id=data.specialty_subject_id if data.role is UserRole.TEACHER else None,
         note=data.note or None,  # chuỗi rỗng sau khi strip → không lưu nhãn
@@ -257,6 +258,7 @@ def reset_password(session: Session, admin: User, user_id: int) -> PasswordReset
         raise UserNotFound
     password = generate_temporary_password()
     user.password_hash = hash_password(password)
+    user.must_change_password = True  # D-114
     record_access(
         session,
         admin,
@@ -275,6 +277,7 @@ def change_password(session: Session, user: User, data: ChangePasswordIn) -> Non
     if data.new_password == data.current_password:
         raise PasswordUnchanged
     user.password_hash = hash_password(data.new_password)
+    user.must_change_password = False
     record_access(
         session, user, AuditAction.CHANGE_PASSWORD, class_id=None, details={}, commit=False
     )

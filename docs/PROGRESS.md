@@ -616,3 +616,16 @@ Làm theo yêu cầu "BGH, GVCN, giáo viên nhập điểm xem lại được c
    - BGH thấy toàn trường năm đó.
    - GVCN/GVBM thấy các lớp mình chủ nhiệm/dạy năm đó.
    - Năm cũ vẫn sửa được dữ liệu.
+
+## Bắt đổi mật khẩu tạm (D-114)
+
+- Tạo tài khoản, đặt lại mật khẩu, nhập giáo viên từ tệp: tài khoản được đánh dấu `must_change_password`.
+- Đăng nhập bằng mật khẩu tạm: chỉ thấy màn hình "Đặt mật khẩu của riêng bạn"; mọi API khác trả 403 tới khi đổi xong.
+- Mới: migration 16 (`f6a1d3e8b2c4`), `GET /auth/me`, `components/auth/ChangePasswordForm.tsx`, `components/auth/ForcedPasswordChange.tsx`; test `tests/auth/test_must_change_password.py`.
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 16) trên DB dev | Đã chạy |
+| `pytest` toàn bộ back-end (1563 qua, 1 bỏ qua cần mô hình thật) | Đã chạy, qua |
+| `ruff check` + `ruff format`, `tsc -b`, `eslint` | Đã chạy, qua |
+| **Trình duyệt thật**: đăng nhập bằng mật khẩu tạm → đặt mật khẩu mới → vào ứng dụng | **Chưa kiểm** |

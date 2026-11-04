@@ -10,6 +10,8 @@ export interface AuthUser {
   email: string
   full_name: string
   role: UserRole
+  // true: đang dùng mật khẩu tạm do Admin cấp, phải đặt mật khẩu mới trước khi dùng (D-114).
+  must_change_password: boolean
 }
 
 export interface LoginResponse {
@@ -51,6 +53,11 @@ export function fetchAssignments(
   signal?: AbortSignal,
 ): Promise<Assignments> {
   return apiGet<Assignments>(withYear('/me/assignments', yearId), signal)
+}
+
+// Tài khoản của chính mình; vẫn trả lời khi còn dùng mật khẩu tạm (các API khác thì 403).
+export function fetchMe(signal?: AbortSignal): Promise<AuthUser> {
+  return apiGet<AuthUser>('/auth/me', signal)
 }
 
 // Tự đổi mật khẩu của chính mình (mọi vai trò). Back-end trả {detail} khi xong.

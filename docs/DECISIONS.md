@@ -658,3 +658,13 @@ Các mục D-076 đến D-084 được ghi bổ sung sau khi mã đã viết xon
 - **Giao diện (quyết định của bạn: ô chọn trên thanh trên cùng):** `YearProvider` giữ năm đang xem (lưu `localStorage`), ô "Năm học" trên thanh trên cùng (hiện khi có từ hai năm), dải báo "đang xem năm … không phải năm hiện hành" kèm nút quay về; đổi năm khi đang mở một lớp thì về trang chủ. Trang Năm học & lớp: bảng các năm (xem, đặt năm hiện hành), biểu mẫu tạo năm mới (chép lớp + lên lớp), sửa năm đang xem, lớp và thêm lớp theo năm đang xem.
 - **Seed** vẫn một năm (2026-2027), đánh dấu `is_current`. `class_id_of` trong test lấy lớp tạo sớm nhất khi nhiều năm trùng tên lớp.
 - **Kiểm kiểu frontend:** lệnh đúng là `tsc -b` (script `typecheck`); `tsc --noEmit` ở thư mục gốc không kiểm gì vì `tsconfig.json` chỉ có project references.
+
+## Mật khẩu tạm
+
+**D-114 · Đăng nhập bằng mật khẩu tạm thì phải tự đặt mật khẩu mới trước khi dùng** (Khi làm, theo yêu cầu của bạn; bổ sung D-097)
+- **Vì sao:** mật khẩu tạm do hệ thống sinh, khó nhớ và Admin đã biết. Người dùng cần đặt mật khẩu riêng, dễ nhớ.
+- **Schema (migration thứ 16, `f6a1d3e8b2c4`):** `users.must_change_password` (mặc định `false`; tài khoản sẵn có và seed không bị ảnh hưởng).
+- **Bật** khi Admin tạo tài khoản, đặt lại mật khẩu, hoặc nhập giáo viên từ tệp. **Tắt** khi người dùng tự đổi mật khẩu thành công (`POST /auth/change-password`).
+- **Chặn ở back-end, không chỉ giao diện:** `CurrentUser` trả **403** "Bạn đang dùng mật khẩu tạm…" khi cờ bật, áp cho mọi endpoint kể cả `/admin/*` (Admin được đặt lại mật khẩu của chính mình cũng phải đổi). Chỉ `GET /auth/me` (mới, trả `UserOut`) và `POST /auth/change-password` dùng `AuthenticatedUser` (không xét cờ). Token cũ dùng tiếp được ngay sau khi đổi.
+- **`UserOut`** (phản hồi đăng nhập, `/auth/me`, `user` trong `/me/assignments`) thêm `must_change_password`.
+- **Giao diện:** `RequireAuth` đọc `/auth/me`; cờ bật thì chỉ hiện màn hình "Đặt mật khẩu của riêng bạn" (ô Mật khẩu tạm, Mật khẩu mới, Nhập lại; nút Đăng xuất), đổi xong vào thẳng ứng dụng. Biểu mẫu dùng chung với trang Đổi mật khẩu (`ChangePasswordForm`). Quy tắc mật khẩu giữ như D-097 (tối thiểu 8 ký tự, khác mật khẩu cũ).
