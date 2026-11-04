@@ -16,6 +16,7 @@ from app.classes.models import (
     SchoolClass,
     SchoolYear,
     Student,
+    Subject,
     TeachingAssignment,
 )
 from app.core.enums import AuditAction, UserRole
@@ -79,6 +80,7 @@ def endpoints(class_id: int, other_class: int, subject_id: int, teacher_id: int)
     return [
         ("GET", f"{base}/school", None),
         ("GET", f"{base}/teachers", None),
+        ("GET", f"{base}/subjects", None),
         (
             "PUT",
             f"{base}/school-year",
@@ -180,7 +182,12 @@ def test_teachers_list_has_only_active_teachers_and_their_homeroom(
     api_client: TestClient, auth_headers: Headers, db_session: Session
 ) -> None:
     make_teacher(db_session, "giao.vien.khoa", active=False)
-    make_teacher(db_session, "giao.vien.tu.do")
+    free = make_teacher(db_session, "giao.vien.tu.do")
+    # Gắn bộ môn để kiểm ô chọn hiện được nhãn phân biệt GV trùng tên (D-111).
+    subject = db_session.scalars(select(Subject).order_by(Subject.id)).first()
+    assert subject is not None
+    free.specialty_subject_id = subject.id
+    db_session.flush()
 
     rows = api_client.get(f"{API}/admin/teachers", headers=auth_headers(ADMIN)).json()
 
@@ -188,7 +195,33 @@ def test_teachers_list_has_only_active_teachers_and_their_homeroom(
     assert "giao.vien.khoa@example.com" not in emails  # tài khoản bị khoá
     assert "bgh1@example.com" not in emails and ADMIN not in emails  # không phải giáo viên
     assert emails["giao.vien.tu.do@example.com"]["homeroom_class"] is None
+    assert emails["giao.vien.tu.do@example.com"]["specialty"] == subject.name
+    assert emails["giao.vien.tu.do@example.com"]["specialty_subject_id"] == subject.id
     assert emails["gvcn.11a2@example.com"]["homeroom_class"] == "11A2"
+    assert emails["gvcn.11a2@example.com"]["specialty"] is None  # chưa gắn bộ môn
+
+
+# --- Danh sách môn (chỉ đọc, D-112) ------------------------------------------------------------
+
+
+def test_subjects_are_read_only(
+    api_client: TestClient, auth_headers: Headers, db_session: Session
+) -> None:
+    # 17 môn GDPT 2018 có sẵn; không có API thêm/sửa/xoá môn.
+    headers = auth_headers(ADMIN)
+    before = db_session.scalar(select(func.count()).select_from(Subject))
+    rows = api_client.get(f"{API}/admin/subjects", headers=headers).json()
+    assert len(rows) == before == 17
+
+    body = {"name": "Môn lạ", "assessment_type": "score", "periods_per_year": 70}
+    assert api_client.post(f"{API}/admin/subjects", headers=headers, json=body).status_code == 405
+    assert api_client.delete(
+        f"{API}/admin/subjects/{rows[0]['id']}", headers=headers
+    ).status_code in (
+        404,
+        405,
+    )
+    assert db_session.scalar(select(func.count()).select_from(Subject)) == before
 
 
 def test_school_year_can_be_edited_but_not_across_existing_attendance(

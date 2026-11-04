@@ -28,6 +28,10 @@ class User(Base):
     # Tài khoản bị khoá không đăng nhập được và token cũ nhận 401 ngay (D-096); không xoá tài khoản
     # vì điểm, nhật ký, phân công còn tham chiếu tới người dùng.
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    # Nhãn nhận diện, KHÔNG cấp quyền (quyền dạy vẫn suy từ teaching_assignments): bộ môn (chuyên
+    # môn) và ghi chú tự do, giúp phân biệt hai giáo viên trùng tên. Cả hai đều tuỳ chọn.
+    specialty_subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id"))
+    note: Mapped[str | None] = mapped_column(String(255))
 
 
 class AuditLog(Base):

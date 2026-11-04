@@ -13,6 +13,10 @@ export interface AdminUser {
   is_active: boolean
   homeroom_class: string | null
   assignment_count: number
+  // Nhãn nhận diện (không cấp quyền): bộ môn và ghi chú, để phân biệt giáo viên trùng tên.
+  specialty_subject_id: number | null
+  specialty: string | null
+  note: string | null
 }
 
 export interface CreatedUser {
@@ -26,6 +30,16 @@ export interface UserUpdate {
   full_name?: string
   role?: UserRole
   is_active?: boolean
+  // null = xoá nhãn (khác các trường trên, nơi vắng mặt = không đổi).
+  specialty_subject_id?: number | null
+  note?: string | null
+}
+
+// Một trong 17 môn GDPT 2018 có sẵn; dùng cho vai trò "Giáo viên <môn>".
+export interface Subject {
+  id: number
+  name: string
+  is_elective: boolean
 }
 
 export interface TeacherRef {
@@ -38,6 +52,9 @@ export interface Teacher {
   full_name: string
   email: string
   homeroom_class: string | null
+  // Môn của giáo viên ("Giáo viên Toán"): hiện cạnh tên, và đưa GV đúng môn lên đầu khi phân công.
+  specialty_subject_id: number | null
+  specialty: string | null
 }
 
 export interface SchoolYear {
@@ -85,6 +102,8 @@ export function createUser(body: {
   email: string
   full_name: string
   role: UserRole
+  specialty_subject_id?: number | null
+  note?: string | null
 }): Promise<CreatedUser> {
   return apiPost<CreatedUser>('/admin/users', body)
 }
@@ -112,6 +131,8 @@ export interface UserImportRow {
   email: string | null
   role: UserRole | null
   role_label: string | null
+  specialty: string | null
+  note: string | null
   status: UserImportStatus
   action: 'new' | null
   messages: UserImportMessage[]
@@ -189,6 +210,11 @@ export function fetchSchool(signal?: AbortSignal): Promise<School> {
 export function fetchTeachers(signal?: AbortSignal): Promise<Teacher[]> {
   return apiGet<Teacher[]>('/admin/teachers', signal)
 }
+
+export function fetchSubjects(signal?: AbortSignal): Promise<Subject[]> {
+  return apiGet<Subject[]>('/admin/subjects', signal)
+}
+
 
 export function saveSchoolYear(body: {
   name: string

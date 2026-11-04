@@ -80,6 +80,11 @@ def generate(
     subject_ids = {subject.name: index for index, subject in enumerate(SUBJECTS, start=1)}
     users, subject_teachers, homeroom_teachers = _build_staff(params, password_hash)
 
+    # Nhãn bộ môn (chỉ để nhận diện, không cấp quyền): gắn môn mà giáo viên bộ môn đang dạy, giúp
+    # phân biệt hai giáo viên trùng tên trên trang quản trị tài khoản.
+    for (subject_name, _grade), user_id in subject_teachers.items():
+        users[user_id - 1]["specialty_subject_id"] = subject_ids[subject_name]
+
     class_rows: list[Row] = []
     student_rows: list[Row] = []
     class_student_rows: list[Row] = []
@@ -199,6 +204,8 @@ def _build_staff(
                 "password_hash": password_hash,
                 "full_name": full_name,
                 "role": role,
+                # Gắn sau cho giáo viên bộ môn; mọi dòng cùng khoá để chèn hàng loạt nhất quán.
+                "specialty_subject_id": None,
             }
         )
         return user_id

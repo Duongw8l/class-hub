@@ -46,6 +46,16 @@ class TeacherOut(BaseModel):
     full_name: str
     email: str
     homeroom_class: str | None  # lớp đang chủ nhiệm; một giáo viên chỉ chủ nhiệm một lớp
+    # Môn của giáo viên ("Giáo viên Toán"), chỉ là nhãn: dùng để hiện cạnh tên và đưa GV đúng môn
+    # lên đầu ô chọn khi phân công. Quyền dạy vẫn theo teaching_assignments.
+    specialty_subject_id: int | None
+    specialty: str | None
+
+
+class SubjectOut(BaseModel):
+    id: int
+    name: str
+    is_elective: bool
 
 
 class AdminClassOut(BaseModel):

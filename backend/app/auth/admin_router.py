@@ -75,6 +75,10 @@ def create_user(admin: AdminUser, session: DbSession, body: UserCreateIn) -> Cre
         return service.create_user(session, admin, body)
     except service.EmailTaken:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Email này đã có tài khoản.") from None
+    except service.SubjectNotFound:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Bộ môn đã chọn không tồn tại."
+        ) from None
 
 
 @router.patch(
@@ -103,6 +107,10 @@ def update_user(
                 "Giáo viên này đang chủ nhiệm hoặc được phân công giảng dạy. "
                 "Hãy gỡ chủ nhiệm và phân công trước khi đổi vai trò."
             ),
+        ) from None
+    except service.SubjectNotFound:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Bộ môn đã chọn không tồn tại."
         ) from None
 
 

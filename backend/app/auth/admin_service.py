@@ -18,7 +18,7 @@ from app.auth.admin_schemas import (
 )
 from app.auth.audit import record_access
 from app.auth.models import User
-from app.classes.models import SchoolClass, TeachingAssignment
+from app.classes.models import SchoolClass, Subject, TeachingAssignment
 from app.core.enums import AuditAction, UserRole
 from app.core.labels import label_vi
 from app.core.security import generate_temporary_password, hash_password, verify_password
@@ -42,6 +42,10 @@ class SelfProtected(Exception):
 
 class HasAssignments(Exception):
     """Đang chủ nhiệm hoặc được phân công giảng dạy: phải gỡ trước khi đổi sang vai trò khác."""
+
+
+class SubjectNotFound(Exception):
+    """specialty_subject_id không khớp môn nào trong danh mục."""
 
 
 class WrongPassword(Exception):
@@ -71,7 +75,13 @@ def _assignment_count(user_id: ColumnElement[int]) -> ScalarSelect[int]:
     )
 
 
-def _out(user: User, homeroom_class: str | None, assignment_count: int) -> AdminUserOut:
+def _specialty_name(subject_id: ColumnElement[int | None]) -> ScalarSelect[str]:
+    return select(Subject.name).where(Subject.id == subject_id).scalar_subquery()
+
+
+def _out(
+    user: User, homeroom_class: str | None, assignment_count: int, specialty: str | None
+) -> AdminUserOut:
     return AdminUserOut(
         id=user.id,
         email=user.email,
@@ -81,22 +91,33 @@ def _out(user: User, homeroom_class: str | None, assignment_count: int) -> Admin
         is_active=user.is_active,
         homeroom_class=homeroom_class,
         assignment_count=assignment_count,
+        specialty_subject_id=user.specialty_subject_id,
+        specialty=specialty,
+        note=user.note,
     )
 
 
 def _load_out(session: Session, user_id: int) -> AdminUserOut:
     row = session.execute(
-        select(User, _homeroom_name(User.id), _assignment_count(User.id)).where(User.id == user_id)
+        select(
+            User,
+            _homeroom_name(User.id),
+            _assignment_count(User.id),
+            _specialty_name(User.specialty_subject_id),
+        ).where(User.id == user_id)
     ).one()
-    return _out(row[0], row[1], row[2])
+    return _out(row[0], row[1], row[2], row[3])
 
 
 def list_users(
     session: Session, *, role: UserRole | None, active: bool | None, query: str | None
 ) -> list[AdminUserOut]:
-    statement = select(User, _homeroom_name(User.id), _assignment_count(User.id)).order_by(
-        User.role, User.full_name, User.id
-    )
+    statement = select(
+        User,
+        _homeroom_name(User.id),
+        _assignment_count(User.id),
+        _specialty_name(User.specialty_subject_id),
+    ).order_by(User.role, User.full_name, User.id)
     if role is not None:
         statement = statement.where(User.role == role)
     if active is not None:
@@ -107,7 +128,13 @@ def list_users(
             User.full_name.icontains(text, autoescape=True)
             | User.email.icontains(text, autoescape=True)
         )
-    return [_out(row[0], row[1], row[2]) for row in session.execute(statement)]
+    return [_out(row[0], row[1], row[2], row[3]) for row in session.execute(statement)]
+
+
+def _require_subject(session: Session, subject_id: int | None) -> None:
+    """Chặn khi specialty_subject_id không khớp môn nào (nhãn vẫn phải trỏ tới môn có thật)."""
+    if subject_id is not None and session.get(Subject, subject_id) is None:
+        raise SubjectNotFound
 
 
 def _email_in_use(session: Session, email: str, *, except_id: int | None = None) -> bool:
@@ -121,6 +148,7 @@ def create_user(session: Session, admin: User, data: UserCreateIn) -> CreatedUse
     email = data.email.lower()
     if _email_in_use(session, email):
         raise EmailTaken
+    _require_subject(session, data.specialty_subject_id)
     password = generate_temporary_password()
     user = User(
         email=email,
@@ -128,6 +156,9 @@ def create_user(session: Session, admin: User, data: UserCreateIn) -> CreatedUse
         role=data.role,
         password_hash=hash_password(password),
         is_active=True,
+        # "Giáo viên <môn>": chỉ giáo viên mới có môn; vai trò khác thì bỏ qua môn gửi lên.
+        specialty_subject_id=data.specialty_subject_id if data.role is UserRole.TEACHER else None,
+        note=data.note or None,  # chuỗi rỗng sau khi strip → không lưu nhãn
     )
     session.add(user)
     try:
@@ -175,6 +206,8 @@ def update_user(session: Session, admin: User, user_id: int, data: UserUpdateIn)
         email = data.email.lower()
         if email != user.email.lower() and _email_in_use(session, email, except_id=user.id):
             raise EmailTaken
+    if "specialty_subject_id" in changes:
+        _require_subject(session, data.specialty_subject_id)
 
     details: dict[str, object] = {"user_id": user.id, "fields": sorted(changes)}
     if new_role is not user.role:
@@ -185,8 +218,14 @@ def update_user(session: Session, admin: User, user_id: int, data: UserUpdateIn)
         user.email = data.email.lower()
     if "full_name" in changes and data.full_name is not None:
         user.full_name = data.full_name
+    if "specialty_subject_id" in changes:
+        user.specialty_subject_id = data.specialty_subject_id  # null = xoá nhãn
+    if "note" in changes:
+        user.note = data.note or None  # null hoặc chuỗi rỗng = xoá ghi chú
     user.role = new_role
     user.is_active = new_active
+    if new_role is not UserRole.TEACHER:
+        user.specialty_subject_id = None  # không còn là giáo viên thì không còn "Giáo viên <môn>"
     try:
         session.flush()
     except IntegrityError:

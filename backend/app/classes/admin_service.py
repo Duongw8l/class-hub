@@ -20,6 +20,7 @@ from app.classes.admin_schemas import (
     SchoolOut,
     SchoolYearIn,
     SchoolYearOut,
+    SubjectOut,
     TeacherOut,
     TeacherRef,
 )
@@ -113,8 +114,20 @@ def get_school(session: Session) -> SchoolOut:
     )
 
 
+def list_subjects(session: Session) -> list[SubjectOut]:
+    """17 môn GDPT 2018 có sẵn (D-112), cho ô "Vai trò: Giáo viên <môn>". Sắp theo id."""
+    rows = session.execute(
+        select(Subject.id, Subject.name, Subject.is_elective).order_by(Subject.id)
+    )
+    return [SubjectOut(id=r[0], name=r[1], is_elective=r[2]) for r in rows]
+
+
 def list_teachers(session: Session) -> list[TeacherOut]:
-    """Giáo viên đang hoạt động (cho ô chọn GVCN và người dạy). Tài khoản bị khoá không có mặt."""
+    """Giáo viên đang hoạt động (cho ô chọn GVCN và người dạy). Tài khoản bị khoá không có mặt.
+
+    Trả kèm môn của giáo viên ("Giáo viên Toán") để ô chọn hiện cạnh tên và đưa GV đúng môn lên đầu
+    khi phân công (D-112); đây chỉ là nhãn, không quyết định ai được phân công môn gì.
+    """
     homeroom = (
         select(SchoolClass.name)
         .where(SchoolClass.homeroom_teacher_id == User.id)
@@ -122,12 +135,25 @@ def list_teachers(session: Session) -> list[TeacherOut]:
         .limit(1)
         .scalar_subquery()
     )
+    specialty = (
+        select(Subject.name).where(Subject.id == User.specialty_subject_id).scalar_subquery()
+    )
     rows = session.execute(
-        select(User.id, User.full_name, User.email, homeroom)
+        select(User.id, User.full_name, User.email, homeroom, User.specialty_subject_id, specialty)
         .where(User.role == UserRole.TEACHER, User.is_active.is_(True))
         .order_by(User.full_name, User.id)
     )
-    return [TeacherOut(id=r[0], full_name=r[1], email=r[2], homeroom_class=r[3]) for r in rows]
+    return [
+        TeacherOut(
+            id=r[0],
+            full_name=r[1],
+            email=r[2],
+            homeroom_class=r[3],
+            specialty_subject_id=r[4],
+            specialty=r[5],
+        )
+        for r in rows
+    ]
 
 
 def save_school_year(session: Session, admin: User, data: SchoolYearIn) -> SchoolYearOut:

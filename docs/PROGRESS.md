@@ -535,3 +535,34 @@ Làm theo yêu cầu "cho upload file chứa thông tin giáo viên lên luôn" 
 5. `make test`, `make lint`. Swagger `/api/docs`, nhóm `admin` (`/admin/users/import`).
 
 > Lưu ý chạy test/samples ngoài Docker cần venv (host). Trong container (runtime, chỉ mount `backend/`) phải chép `data/` và `eval/` vào rồi đặt `PYTHONPATH=/app:/` — đây chỉ là cách chạy tạm khi chưa có venv host.
+
+## Vai trò "Giáo viên <môn>", ghi chú, và phân công ưu tiên GV đúng môn (Admin)
+
+Làm theo các yêu cầu: thêm môn và ghi chú cho tài khoản giáo viên để phân biệt người trùng tên (D-111); chọn thẳng "Giáo viên Toán", "Giáo viên Ngữ văn"… trong ô Vai trò với danh sách môn có sẵn, và khi phân công đưa giáo viên đúng môn lên đầu (D-112). Môn của giáo viên **chỉ là nhãn**: quyền dạy vẫn theo phân công lớp–môn.
+
+### Đã làm
+
+- **Schema**: `users` thêm `specialty_subject_id` (FK → `subjects.id`) và `note` (`VARCHAR(255)`), cùng cho phép NULL — **migration 13** (`b8e5c1a2d3f4`). **Migration 14** (`d4e8b1c6f2a9`) nạp sẵn 17 môn GDPT 2018, nên DB chưa seed vẫn có môn để chọn và để phân công.
+- **API**: `AdminUserOut` thêm `specialty_subject_id`, `specialty`, `note`; tạo/sửa tài khoản nhận hai trường này (gửi `null` = xoá; môn không tồn tại → 422); chỉ giáo viên giữ môn (BGH/Admin hoặc đổi khỏi vai trò giáo viên → môn về NULL). `GET /admin/subjects` (chỉ đọc). `GET /admin/teachers` thêm `specialty_subject_id`, `specialty`.
+- **Nhập từ tệp**: cột Vai trò nhận "Giáo viên Toán"/"GV Ngữ văn"; thêm cột tuỳ chọn Bộ môn, Ghi chú; môn không khớp chỉ cảnh báo.
+- **Seed**: gắn môn cho mỗi GV bộ môn theo môn đang dạy.
+- **Giao diện**: ô **Vai trò** gộp ("Giáo viên <môn>" ×17, "Giáo viên (chưa chọn môn)", "Ban giám hiệu", "Quản trị viên") + ô **Ghi chú**; danh sách tài khoản hiện "Giáo viên Toán" ở cột Vai trò, ghi chú dưới email, tìm kiếm khớp cả môn và ghi chú; ô chọn giáo viên khi phân công chia nhóm "Giáo viên <môn>" (lên đầu) / "Giáo viên khác", mỗi dòng `Tên — Môn`.
+- **Test**: `test_admin_users.py` (lưu môn + ghi chú; môn lạ 422; đặt rồi xoá nhãn; chỉ giáo viên giữ môn), `test_user_import.py` (khớp môn ở cột Bộ môn và ở cột Vai trò), `test_admin_school.py` (danh sách giáo viên có môn; danh sách môn chỉ đọc), `test_migrations.py` (17 môn có sẵn sau migrate; xuống base rồi lên lại sạch).
+
+### Đã kiểm chứng và còn chờ kiểm chứng
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 13, 14) trên DB dev: 17 môn, tên lưu đúng UTF-8 | Đã chạy, đúng |
+| `ruff check` + `ruff format --check` (`app`, `tests`, `alembic`), `tsc --noEmit`, `eslint` | Đã chạy, qua |
+| `pytest tests/auth tests/classes tests/db` (233 test) | Đã chạy, qua |
+| API thật: tạo "Giáo viên Toán" → trả `specialty`; `/admin/teachers` có `specialty_subject_id` | Đã chạy, đúng; đã dọn tài khoản thử |
+| **Trình duyệt thật** (ô Vai trò gộp, cột Vai trò trong danh sách, nhóm "Giáo viên <môn>" khi phân công) | **Chưa kiểm** |
+| Seed gắn môn hiển thị trên giao diện | **Chưa kiểm trong container** (`/data` trong ảnh là bản chép cũ; chạy `make seed` từ host) |
+
+### Cách dùng
+
+1. DB dev đã ở migration 14; DB mới: `make migrate` (có sẵn 17 môn; `make seed` nếu muốn dữ liệu mẫu).
+2. **Tài khoản** → "Thêm tài khoản" → ô **Vai trò** chọn "Giáo viên Toán" (hoặc môn khác) → thêm **Ghi chú** nếu cần phân biệt người trùng tên → Tạo.
+3. **Năm học & lớp** → bấm một lớp → **Phân công giảng dạy**: mỗi dòng một môn; ô chọn hiện nhóm "Giáo viên <môn đó>" trên đầu, "Giáo viên khác" ở dưới (vẫn chọn được nếu dạy chéo môn). Chọn là lưu ngay.
+4. `make test`, `make lint`.

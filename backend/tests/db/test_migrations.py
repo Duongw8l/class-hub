@@ -173,6 +173,9 @@ def test_downgrade_to_base_then_upgrade_again_is_clean(
         assert "v_subject_average" in inspect(connection).get_view_names()
         settings_count = connection.execute(text("SELECT count(*) FROM settings")).scalar_one()
         assert settings_count == len(EXPECTED_SETTING_KEYS)
+        # 17 môn GDPT 2018 có sẵn ngay sau migrate, không cần seed (D-112).
+        subject_count = connection.execute(text("SELECT count(*) FROM subjects")).scalar_one()
+        assert subject_count == 17
 
 
 def test_view_exposes_only_raw_aggregates_without_formula_columns(db_conn: Connection) -> None:
