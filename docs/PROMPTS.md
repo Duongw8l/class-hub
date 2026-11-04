@@ -337,3 +337,53 @@ Khi chạy <lệnh> tôi gặp lỗi sau: <dán lỗi>. Tìm nguyên nhân gốc
 ```text
 Tôi vừa cập nhật docs/DESIGN.md ở mục <số mục>: <mô tả thay đổi>. Liệt kê những file và test bị ảnh hưởng, đề xuất kế hoạch cập nhật, chờ tôi duyệt rồi mới sửa.
 ```
+
+**Viết / cập nhật đặc tả yêu cầu (SRS)** (bật plan mode trước khi dán):
+
+```text
+Đọc @CLAUDE.md, @docs/DESIGN.md, @docs/FLOWS.md, @docs/DECISIONS.md và @docs/PROGRESS.md.
+
+Nhiệm vụ: viết tài liệu đặc tả yêu cầu phần mềm (SRS) cho dự án vào docs/SRS.md, bằng tiếng Việt, theo khung ISO/IEC/IEEE 29148 (IEEE 830) viết gọn. Người đọc: giảng viên hướng dẫn, nhóm phát triển, người kiểm thử, nhà trường dùng thử.
+
+Nguyên tắc:
+1. Mã nguồn là sự thật. SRS mô tả hệ thống đang làm được gì, đối chiếu với backend/app, backend/alembic, frontend/src, backend/tests, eval, data/seed. DESIGN.md và mã nguồn khác nhau: theo mã nguồn, ghi rõ chỗ lệch. DESIGN có mà mã chưa làm: vẫn liệt kê, đánh dấu ⬜.
+2. Không bịa. Mỗi yêu cầu chỉ ra được nguồn (mục DESIGN, quyết định D-xxx hoặc file mã) và cách kiểm chứng (file test hoặc ca trong eval/). Không tìm được bằng chứng thì ghi "chưa có test", không đoán.
+3. Mỗi yêu cầu là một câu "Hệ thống phải…" kiểm chứng được: một ý, có số đo hoặc điều kiện cụ thể. Không dùng từ mơ hồ ("nhanh", "thân thiện", "dễ dùng") nếu không kèm con số.
+4. Hệ số và ngưỡng Thông tư 22 ghi kèm khoá trong bảng settings và giá trị mặc định, ví dụ `max_absent_sessions` = 45. Đọc từ seed và migration, không chép từ trí nhớ.
+5. Số liệu (số bảng, số endpoint, số test, kết quả đo hiệu năng) phải đếm hoặc chạy thật, ghi kèm ngày và lệnh đã dùng. Không chạy được thì ghi nguồn (PROGRESS.md, D-xxx) và ngày của nguồn đó.
+6. Không đưa vào tài liệu: mật khẩu (kể cả mật khẩu dev), khoá API, dữ liệu học sinh dù là giả lập (chỉ mô tả cấu trúc).
+7. Số hiển thị kiểu Việt Nam (6,5; 1.500). Tên bảng, cột, endpoint, khoá settings giữ nguyên tiếng Anh trong `code`.
+8. Chỉ sửa docs/SRS.md. Không sửa mã, DESIGN.md, DECISIONS.md. Thiết kế mâu thuẫn hoặc chưa rõ: ghi vào mục "Vấn đề mở" và hỏi tôi, không tự chốt.
+
+Nếu docs/SRS.md đã có: đây là bản cập nhật. Giữ cấu trúc và mã yêu cầu cũ (không đánh số lại; yêu cầu bị bỏ thì ghi "Đã bỏ" thay vì xoá mã), sửa những dòng không còn khớp mã nguồn, thêm yêu cầu mới, tăng số phiên bản và ghi lịch sử thay đổi.
+
+Bố cục:
+0. Bảng thông tin tài liệu (phiên bản, ngày, commit đối chiếu, tài liệu liên quan) và lịch sử phiên bản.
+1. Giới thiệu: mục đích; phạm vi (trong / ngoài phạm vi); thuật ngữ và viết tắt (GVBM, GVCN, BGH, ĐĐGtx/gk/ck, ĐTBmhk/ĐTBmcn, môn nhận xét…); tài liệu tham chiếu (Thông tư 22/2021/TT-BGDĐT, Chương trình GDPT 2018); tổng quan tài liệu.
+2. Mô tả tổng quát: bối cảnh và sơ đồ ngữ cảnh (Mermaid); chức năng chính tóm tắt; tác nhân và ma trận quyền (vai trò × chức năng, dựa trên authorize() thật); môi trường vận hành; ràng buộc thiết kế (8 nguyên tắc bất biến trong CLAUDE.md, mỗi nguyên tắc ghi nơi thực thi trong mã); giả định và phụ thuộc.
+3. Quy tắc nghiệp vụ (BR-xx): công thức và ngưỡng Thông tư 22, điều kiện lên lớp, mức học tập / rèn luyện, luật cảnh báo sớm. Mỗi quy tắc ghi khoá settings và hàm hiện thực nó trong backend/app/analytics/ hoặc backend/app/warning/.
+4. Use case: sơ đồ tác nhân – use case (Mermaid flowchart), rồi đặc tả 10–15 use case chính (đăng nhập và đổi mật khẩu tạm, nhập dữ liệu từ tệp, sửa điểm tay, xem dashboard lớp / môn / khối, xem và xử lý cảnh báo, hỏi trợ lý AI, hỏi đáp quy định, sinh và duyệt nhận xét, quản trị tài khoản – năm học – phân công…). Mỗi use case: mã UC, tác nhân, tiền điều kiện, luồng chính, luồng thay thế / ngoại lệ (có trường hợp 403), hậu điều kiện, các FR liên quan.
+5. Yêu cầu chức năng, chia theo module (auth, quản trị, năm học, imports, sửa điểm, analytics, warning, rag, assistant, reports…). Bảng: Mã (FR-<MODULE>-NN) | Yêu cầu | Ưu tiên (Bắt buộc / Nên có / Có thể) | Trạng thái (✅ đã làm và có test / 🟡 một phần / ⬜ chưa làm) | Nguồn | Kiểm chứng.
+6. Yêu cầu dữ liệu: mô hình dữ liệu (sơ đồ ER Mermaid các bảng chính, lấy từ models.py thật); bảng settings (khoá, giá trị mặc định, ý nghĩa); định dạng tệp nhập (cột bắt buộc, quy tắc kiểm tra, cách báo lỗi); dữ liệu mẫu; lưu giữ và nhật ký.
+7. Yêu cầu giao diện ngoài: giao diện người dùng (danh sách trang theo router front-end, vai trò nào thấy trang nào); API (bảng Method | Đường dẫn | Vai trò | Mô tả, lấy từ router FastAPI thật, không bỏ sót endpoint); dịch vụ ngoài (nhà cung cấp LLM, mô hình embedding) và dữ liệu nào được gửi đi.
+8. Yêu cầu phi chức năng (NFR-xx): chính xác, hiệu năng, bảo mật, quyền riêng tư, minh bạch và đạo đức AI, khả dụng, triển khai, bảo trì. Mỗi yêu cầu có chỉ số đo và bằng chứng hiện tại.
+9. Ma trận truy vết: DESIGN (F1–F12 và yêu cầu phi chức năng) → BR / UC / FR / NFR → test. Liệt kê riêng phần đã làm vượt DESIGN, kèm D-xxx.
+10. Hạn chế đã biết, việc chưa làm, vấn đề mở (câu hỏi cần tôi trả lời).
+
+Cách làm:
+1. Khảo sát trước khi viết: liệt kê endpoint từ các router, trang từ router front-end, bảng từ models.py và migration, khoá settings và giá trị mặc định, quyết định D-xxx còn hiệu lực, thư mục test của từng module. Dùng subagent Explore nếu cần quét rộng.
+2. Đưa tôi dàn ý, danh sách chỗ DESIGN và mã nguồn lệch nhau, và các câu hỏi còn mở. Chờ tôi duyệt rồi mới viết.
+3. Viết từng mục. Ưu tiên bảng và gạch đầu dòng, câu ngắn; dẫn chiếu mục DESIGN thay vì chép lại nguyên văn.
+4. Tự rà soát trước khi báo xong:
+   - Mọi endpoint trong mã có mặt ở mục 7; mọi F1–F12 có mặt trong ma trận truy vết.
+   - Mọi FR có nguồn và cột kiểm chứng; mọi mã yêu cầu là duy nhất.
+   - Sơ đồ Mermaid đúng cú pháp.
+   - Không có mật khẩu, khoá API, tên học sinh trong tài liệu.
+5. Báo cho tôi: tóm tắt nội dung, số yêu cầu theo từng trạng thái, các chỗ lệch và câu hỏi mở, đề xuất commit message (docs: …). Không tự commit.
+```
+
+**Xuất SRS ra Word** (đóng `docs/SRS.docx` trong Word trước):
+
+```text
+Chuyển docs/SRS.md thành docs/SRS.docx: trang bìa (tên tài liệu, phiên bản, ngày), mục lục tự động, heading theo đúng cấp, bảng có viền và dòng tiêu đề lặp lại khi sang trang, sơ đồ Mermaid xuất thành hình. Giữ nguyên nội dung, không sửa docs/SRS.md.
+```
