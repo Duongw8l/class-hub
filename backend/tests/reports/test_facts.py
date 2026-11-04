@@ -327,10 +327,12 @@ def test_grade_facts_compare_the_classes_of_the_grade(
     ]
     means = {
         s["subject"]: {m["class"]: m["mean"] for m in s["class_means"]}
-        for s in result["common_subject_means"]
+        for s in result["subject_means"]
     }
-    assert means  # có môn chung để so sánh
-    for subject in overview.common_subjects:
+    assert means  # có môn để so sánh
+    comment = {s["subject"] for s in result["comment_subjects"]}
+    assert comment and not comment & set(means)  # môn nhận xét tách riêng
+    for subject in (s for s in overview.subjects if s.assessment_type == "score"):
         for item in subject.class_means:
             name = next(c.name for c in overview.classes if c.class_id == item.class_id)
             expected = None if item.mean is None else float(item.mean)

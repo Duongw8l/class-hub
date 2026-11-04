@@ -261,15 +261,22 @@ class ClassOverviewOut(BaseModel):
 
 
 class ClassMeanOut(BaseModel):
+    """Kết quả một môn của một lớp: ĐTB lớp (môn điểm số) hoặc số Đạt / Chưa đạt (môn nhận xét)."""
+
     class_id: int
-    mean: Score | None
+    mean: Score | None  # môn điểm số; None với môn nhận xét hoặc chưa có điểm
+    comment_pass: int  # môn nhận xét: số học sinh Đạt
+    comment_fail: int  # môn nhận xét: số học sinh Chưa đạt
 
 
-class CommonSubjectOut(BaseModel):
-    """Môn mà mọi lớp trong khối đều học, để so sánh trung bình giữa các lớp."""
+class GradeSubjectOut(BaseModel):
+    """Một môn của khối (D-116): mọi môn có ít nhất một lớp học, kể cả môn lựa chọn và môn nhận
+    xét. `class_means` chỉ có các lớp học môn đó."""
 
     subject_id: int
     name: str
+    assessment_type: AssessmentType
+    class_count: int  # số lớp trong khối học môn này
     class_means: list[ClassMeanOut]
 
 
@@ -277,4 +284,4 @@ class GradeOverviewOut(BaseModel):
     grade_level: int
     period: Period
     classes: list[ClassOverviewOut]
-    common_subjects: list[CommonSubjectOut]
+    subjects: list[GradeSubjectOut]  # môn điểm số trước, rồi môn nhận xét

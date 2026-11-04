@@ -24,10 +24,10 @@ from app.analytics.schemas import (
     ClassMeanOut,
     ClassOverviewOut,
     ClassRefOut,
-    CommonSubjectOut,
     DashboardOut,
     DistributionOut,
     GradeOverviewOut,
+    GradeSubjectOut,
     MonthAbsenceOut,
     Period,
     ProfileAttendanceOut,
@@ -384,25 +384,37 @@ def build_grade_overview(
             )
         )
 
-    common_ids = (
-        set.intersection(*({s.id for s in r.subjects} for r in per_class)) if per_class else set()
-    )
+    # Mọi môn của khối (D-116), không chỉ môn chung: lớp không học môn nào thì không có dòng.
     means: dict[int, list[ClassMeanOut]] = defaultdict(list)
-    names: dict[int, str] = {}
+    info: dict[int, tuple[str, AssessmentType]] = {}
     for results in per_class:
-        for stat in subject_stats(results, config):
-            if stat.subject_id in common_ids and stat.assessment_type is AssessmentType.SCORE:
-                names[stat.subject_id] = stat.name
-                means[stat.subject_id].append(
-                    ClassMeanOut(class_id=results.class_info.id, mean=stat.mean)
+        for index, stat in enumerate(subject_stats(results, config)):
+            per_student = [s.subjects[index] for s in results.students]
+            info[stat.subject_id] = (stat.name, stat.assessment_type)
+            means[stat.subject_id].append(
+                ClassMeanOut(
+                    class_id=results.class_info.id,
+                    mean=stat.mean if stat.assessment_type is AssessmentType.SCORE else None,
+                    comment_pass=sum(
+                        1 for r in per_student if r.comment_result is CommentResult.PASS
+                    ),
+                    comment_fail=stat.comment_fail,
                 )
+            )
+    order = sorted(means, key=lambda sid: (info[sid][1] is not AssessmentType.SCORE, sid))
     return GradeOverviewOut(
         grade_level=grade_level,
         period=period,
         classes=overviews,
-        common_subjects=[
-            CommonSubjectOut(subject_id=sid, name=names[sid], class_means=means[sid])
-            for sid in sorted(means)
+        subjects=[
+            GradeSubjectOut(
+                subject_id=sid,
+                name=info[sid][0],
+                assessment_type=info[sid][1],
+                class_count=len(means[sid]),
+                class_means=means[sid],
+            )
+            for sid in order
         ],
     )
 

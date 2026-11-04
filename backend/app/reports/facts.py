@@ -234,13 +234,31 @@ def grade_facts(
             }
             for c in data["classes"]
         ],
-        "common_subject_means": [
+        # Mọi môn điểm số của khối (D-116); lớp không học môn đó thì không có trong danh sách.
+        "subject_means": [
             {
                 "subject": s["name"],
                 "class_means": [
                     {"class": name_of[m["class_id"]], "mean": m["mean"]} for m in s["class_means"]
                 ],
             }
-            for s in data["common_subjects"]
+            for s in data["subjects"]
+            if s["assessment_type"] == "score"
+        ],
+        # Môn đánh giá bằng nhận xét: số học sinh Đạt / Chưa đạt theo lớp.
+        "comment_subjects": [
+            {
+                "subject": s["name"],
+                "class_means": [
+                    {
+                        "class": name_of[m["class_id"]],
+                        "pass": m["comment_pass"],
+                        "fail": m["comment_fail"],
+                    }
+                    for m in s["class_means"]
+                ],
+            }
+            for s in data["subjects"]
+            if s["assessment_type"] == "comment"
         ],
     }

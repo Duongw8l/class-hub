@@ -2,7 +2,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import type { GradeOverview } from '../api/analytics'
+import type { ClassSubjectResult, GradeOverview, GradeSubject } from '../api/analytics'
 import { ClassLevelsChart } from '../components/charts/ClassLevelsChart'
 import { CompareChart } from '../components/charts/CompareChart'
 import type { CompareDatum } from '../components/charts/CompareChart'
@@ -70,27 +70,118 @@ function ClassesTable({ overview }: { overview: GradeOverview }) {
   )
 }
 
-function meanOf(overview: GradeOverview, subjectId: number, classId: number): number | null {
+function resultOf(
+  overview: GradeOverview,
+  subjectId: number,
+  classId: number,
+): ClassSubjectResult | undefined {
+  return overview.subjects
+    .find((subject) => subject.subject_id === subjectId)
+    ?.class_means.find((item) => item.class_id === classId)
+}
+
+// Một ô của bảng: ĐTB lớp (môn điểm số) hoặc số Chưa đạt (môn nhận xét), học kỳ I → học kỳ II.
+function CompareCell({
+  subject,
+  classId,
+  first,
+  second,
+}: {
+  subject: GradeSubject
+  classId: number
+  first: GradeOverview
+  second: GradeOverview
+}) {
+  const a = resultOf(first, subject.subject_id, classId)
+  const b = resultOf(second, subject.subject_id, classId)
+  if (a === undefined && b === undefined) {
+    return (
+      <td className="px-3 py-2 text-right text-slate-400" title="Lớp không học môn này">
+        <span aria-hidden="true">·</span>
+        <span className="sr-only">Không học</span>
+      </td>
+    )
+  }
+  const isScore = subject.assessment_type === 'score'
+  const show = (item: ClassSubjectResult | undefined) =>
+    item === undefined ? '—' : isScore ? formatScore(item.mean) : String(item.comment_fail)
   return (
-    overview.common_subjects
-      .find((subject) => subject.subject_id === subjectId)
-      ?.class_means.find((item) => item.class_id === classId)?.mean ?? null
+    <td className="px-3 py-2 text-right tabular-nums">
+      {show(a)}
+      <span aria-hidden="true"> → </span>
+      <span className="sr-only"> sang </span>
+      {show(b)}
+    </td>
   )
+}
+
+function SubjectName({ subject, total }: { subject: GradeSubject; total: number }) {
+  return (
+    <th scope="row" className="px-3 py-2 font-normal">
+      {subject.name}
+      {subject.class_count < total && (
+        <span className="ml-1.5 text-xs text-slate-500">
+          ({subject.class_count}/{total} lớp)
+        </span>
+      )}
+    </th>
+  )
+}
+
+function SubjectRows({
+  subjects,
+  total,
+  first,
+  second,
+}: {
+  subjects: GradeSubject[]
+  total: number
+  first: GradeOverview
+  second: GradeOverview
+}) {
+  return subjects.map((item) => (
+    <tr key={item.subject_id}>
+      <SubjectName subject={item} total={total} />
+      {first.classes.map((klass) => (
+        <CompareCell
+          key={klass.class_id}
+          subject={item}
+          classId={klass.class_id}
+          first={first}
+          second={second}
+        />
+      ))}
+    </tr>
+  ))
+}
+
+function classCountNote(subject: GradeSubject, total: number): string {
+  return subject.class_count < total ? ` (${subject.class_count}/${total} lớp)` : ''
 }
 
 function Comparison({ first, second }: { first: GradeOverview; second: GradeOverview }) {
   const [chosen, setChosen] = useState<number | null>(null)
-  const subjects = first.common_subjects
-  const subjectId = chosen ?? subjects[0]?.subject_id ?? null
+  const subjects = first.subjects
+  const scoreSubjects = subjects.filter((subject) => subject.assessment_type === 'score')
+  const commentSubjects = subjects.filter((subject) => subject.assessment_type === 'comment')
+  const subject =
+    subjects.find((item) => item.subject_id === chosen) ?? scoreSubjects[0] ?? subjects[0]
+  const total = first.classes.length
+  const isScore = subject?.assessment_type !== 'comment'
 
-  const meanData: CompareDatum[] =
-    subjectId === null
+  // Biểu đồ chỉ có các lớp học môn đang chọn.
+  const subjectData: CompareDatum[] =
+    subject === undefined
       ? []
-      : first.classes.map((item) => ({
-          name: item.name,
-          first: meanOf(first, subjectId, item.class_id),
-          second: meanOf(second, subjectId, item.class_id),
-        }))
+      : first.classes
+          .filter((item) => subject.class_means.some((result) => result.class_id === item.class_id))
+          .map((item) => {
+            const a = resultOf(first, subject.subject_id, item.class_id)
+            const b = resultOf(second, subject.subject_id, item.class_id)
+            return isScore
+              ? { name: item.name, first: a?.mean ?? null, second: b?.mean ?? null }
+              : { name: item.name, first: a?.comment_fail ?? 0, second: b?.comment_fail ?? 0 }
+          })
   const failData: CompareDatum[] = first.classes.map((item) => ({
     name: item.name,
     first: item.learning_levels.fail ?? 0,
@@ -104,18 +195,39 @@ function Comparison({ first, second }: { first: GradeOverview; second: GradeOver
           <label className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
             Môn
             <select
-              value={subjectId ?? ''}
+              value={subject?.subject_id ?? ''}
               onChange={(event) => setChosen(Number(event.target.value))}
               className="input w-auto py-1.5"
             >
-              {subjects.map((subject) => (
-                <option key={subject.subject_id} value={subject.subject_id}>
-                  {subject.name}
-                </option>
-              ))}
+              <optgroup label="Môn tính điểm">
+                {scoreSubjects.map((item) => (
+                  <option key={item.subject_id} value={item.subject_id}>
+                    {item.name}
+                    {classCountNote(item, total)}
+                  </option>
+                ))}
+              </optgroup>
+              {commentSubjects.length > 0 && (
+                <optgroup label="Môn đánh giá bằng nhận xét">
+                  {commentSubjects.map((item) => (
+                    <option key={item.subject_id} value={item.subject_id}>
+                      {item.name}
+                      {classCountNote(item, total)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </label>
-          <CompareChart data={meanData} kind="score" label="ĐTB của lớp: học kỳ I so với học kỳ II" />
+          <CompareChart
+            data={subjectData}
+            kind={isScore ? 'score' : 'count'}
+            label={
+              isScore
+                ? 'ĐTB của lớp: học kỳ I so với học kỳ II'
+                : 'Số học sinh Chưa đạt của môn: học kỳ I so với học kỳ II'
+            }
+          />
         </div>
         <div>
           <p className="mb-2 text-sm font-medium text-slate-700">
@@ -132,7 +244,8 @@ function Comparison({ first, second }: { first: GradeOverview; second: GradeOver
       <div className="overflow-x-auto">
         <table className="data-table min-w-max">
           <caption className="pb-2 text-left text-sm text-slate-500">
-            ĐTB của lớp theo môn: học kỳ I → học kỳ II
+            Học kỳ I → học kỳ II. Môn tính điểm: ĐTB của lớp. Môn nhận xét: số học sinh Chưa đạt.
+            Dấu · là lớp không học môn đó.
           </caption>
           <thead>
             <tr>
@@ -143,21 +256,19 @@ function Comparison({ first, second }: { first: GradeOverview; second: GradeOver
             </tr>
           </thead>
           <tbody>
-            {subjects.map((subject) => (
-              <tr key={subject.subject_id}>
-                <th scope="row" className="px-3 py-2 font-normal">
-                  {subject.name}
+            <SubjectRows subjects={scoreSubjects} total={total} first={first} second={second} />
+            {commentSubjects.length > 0 && (
+              <tr>
+                <th
+                  scope="rowgroup"
+                  colSpan={total + 1}
+                  className="bg-slate-50 px-3 py-2 text-left text-xs font-semibold text-slate-600"
+                >
+                  Môn đánh giá bằng nhận xét · số học sinh Chưa đạt
                 </th>
-                {first.classes.map((item) => (
-                  <td key={item.class_id} className="px-3 py-2 text-right tabular-nums">
-                    {formatScore(meanOf(first, subject.subject_id, item.class_id))}
-                    <span aria-hidden="true"> → </span>
-                    <span className="sr-only"> sang </span>
-                    {formatScore(meanOf(second, subject.subject_id, item.class_id))}
-                  </td>
-                ))}
               </tr>
-            ))}
+            )}
+            <SubjectRows subjects={commentSubjects} total={total} first={first} second={second} />
           </tbody>
         </table>
       </div>
@@ -223,7 +334,7 @@ export default function GradeOverviewPage() {
       <Panel
         id="hk1-hk2"
         title="Học kỳ I so với học kỳ II"
-        description="Chỉ các môn mà mọi lớp trong khối đều học. ĐTB của lớp là số mô tả để so sánh, không phải số của Thông tư."
+        description="Mọi môn của khối, kể cả môn lựa chọn (chỉ các lớp học môn đó) và môn đánh giá bằng nhận xét. ĐTB của lớp là số mô tả để so sánh, không phải số của Thông tư."
       >
         <CompareSection first={first} second={second} />
       </Panel>

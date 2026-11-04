@@ -128,11 +128,23 @@ export interface GradeOverview {
   grade_level: number
   period: Period
   classes: ClassOverview[]
-  common_subjects: {
-    subject_id: number
-    name: string
-    class_means: { class_id: number; mean: number | null }[]
-  }[]
+  // Mọi môn của khối (D-116), môn điểm số trước; class_means chỉ có các lớp học môn đó.
+  subjects: GradeSubject[]
+}
+
+export interface GradeSubject {
+  subject_id: number
+  name: string
+  assessment_type: 'score' | 'comment'
+  class_count: number
+  class_means: ClassSubjectResult[]
+}
+
+export interface ClassSubjectResult {
+  class_id: number
+  mean: number | null
+  comment_pass: number
+  comment_fail: number
 }
 
 // --- Hồ sơ học sinh ---

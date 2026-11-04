@@ -647,3 +647,8 @@ Làm theo yêu cầu "BGH, GVCN, giáo viên nhập điểm xem lại được c
 - Hàng nút lọc trên bảng điểm: Tất cả, Dưới 3,5, 3,5 đến dưới 5,0, 5,0 đến dưới 6,5, 6,5 đến dưới 8,0, Từ 8,0, Còn thiếu đầu điểm (môn nhận xét: Đạt, Chưa đạt, Còn thiếu); mỗi nút kèm số học sinh. Chọn xét theo ĐTB học kỳ đang xem hoặc ĐTB cả năm.
 - Ngưỡng lấy từ `thresholds` do API trả (bảng `settings`), cùng cách chia với biểu đồ phân bố; chỉ lọc hiển thị, ĐTB vẫn do server tính. Chỉ đổi front-end (`SubjectScoresPage.tsx`), không có API mới.
 - `tsc -b`, `eslint`: qua. Trình duyệt thật: **chưa kiểm**.
+
+## So sánh khối theo mọi môn (D-116)
+
+- Trang Khối (BGH), mục "Học kỳ I so với học kỳ II": có đủ 17 môn (trước chỉ 5 môn chung), môn lựa chọn chỉ so các lớp học môn đó, môn nhận xét so số học sinh Chưa đạt.
+- `pytest` analytics, reports, assistant (619 qua); `tsc -b`, `eslint` qua; API thật trên DB dev: khối 10 trả 17 môn. Trình duyệt thật: **chưa kiểm**.

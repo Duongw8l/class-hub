@@ -678,3 +678,11 @@ Các mục D-076 đến D-084 được ghi bổ sung sau khi mã đã viết xon
 - **Lý do bắt buộc (quyết định của bạn):** `retest` Kiểm tra lại, `makeup` Kiểm tra bù, `correction` Nhập sai, `other` Khác (bắt buộc ghi chú).
 - **Lịch sử:** bảng mới `assessment_changes` (migration thứ 17, `a8c3e5f1d9b7`): mỗi đầu điểm đổi giá trị một dòng (cũ → mới, cũ NULL khi trước đó thiếu), lý do, ghi chú, người sửa, thời điểm; chỉ thêm, xoá theo lượt xếp lớp (CASCADE). Ghi cùng transaction với điểm và nhật ký `edit_scores`. Nhập từ tệp không ghi vào bảng này.
 - **API:** `GET /classes/{class_id}/subjects/{subject_id}/students/{student_id}/scores?semester=` qua `authorize()` (ghi nhật ký `view_subject_scores` kèm `student_id`), trả các đầu điểm, `tx_slots`, `can_edit`, lịch sử. `PUT` cùng đường dẫn qua `authorize_write()` (chỉ GVBM được phân công, như nhập tệp); chỉ ghi ô đổi giá trị, không đổi gì → 400; giá trị: 0–10, tối đa 1 chữ số thập phân, TX trong số đầu điểm của môn, môn nhận xét chỉ Đạt / Chưa đạt → 422. Lưu xong chạy lại cảnh báo sớm của lớp (`on_data_changed`).
+
+## So sánh khối theo mọi môn
+
+**D-116 · "Học kỳ I so với học kỳ II" của khối bao quát mọi môn, không chỉ môn chung** (Khi làm, theo yêu cầu của bạn; thay cách làm cũ chỉ lấy môn mọi lớp đều học)
+- **Vì sao:** BGH cần nhìn toàn bộ các môn. Cách cũ lấy giao các môn của mọi lớp nên môn lựa chọn (Lí, Hoá, Sinh, Địa, Tin, Công nghệ, GDKT&PL…) và môn nhận xét bị bỏ; với tổ hợp hiện tại khối chỉ còn 5 môn.
+- **API:** `GradeOverviewOut.common_subjects` đổi thành `subjects`: mọi môn có ít nhất một lớp học, môn điểm số trước rồi môn nhận xét; mỗi môn có `assessment_type`, `class_count` (số lớp học môn đó) và `class_means` chỉ gồm các lớp học môn đó, mỗi lớp có `mean` (môn điểm số) cùng `comment_pass` / `comment_fail` (môn nhận xét).
+- **Giao diện:** ô chọn môn chia hai nhóm (môn tính điểm, môn nhận xét), môn không phải lớp nào cũng học ghi "(4/10 lớp)"; biểu đồ chỉ có các lớp học môn đó (môn nhận xét: số học sinh Chưa đạt); bảng có mọi môn, ô "·" là lớp không học môn đó.
+- **Trợ lý AI và báo cáo khối:** tool `get_grade_overview` và dữ kiện báo cáo khối đổi `common_subject_means` thành `subject_means` (mọi môn điểm số) và thêm `comment_subjects` (số Đạt / Chưa đạt theo lớp). Số liệu vẫn do Analytics tính.

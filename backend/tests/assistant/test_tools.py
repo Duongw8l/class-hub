@@ -507,7 +507,7 @@ def test_grade_overview_for_principal_matches_the_service(
     assert [c["student_count"] for c in result["classes"]] == [
         c.student_count for c in expected.classes
     ]
-    first = result["common_subject_means"][0]
+    first = result["subject_means"][0]
     assert {m["class"] for m in first["by_class"]} == {c.name for c in expected.classes}
     assert_clean(ctx, outcome)
 

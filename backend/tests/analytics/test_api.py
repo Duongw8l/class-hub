@@ -257,11 +257,18 @@ def test_grade_overview_compares_the_three_classes(
     assert sum(c["student_count"] for c in body["classes"]) == 120
     assert all(sum(c["learning_levels"].values()) == 40 for c in body["classes"])
     assert body["classes"][0]["absent_over_limit_students"] >= 1  # 12A1 có HS nghỉ 46 buổi
-    common = {s["name"]: s for s in body["common_subjects"]}
-    assert "Toán" in common and "Ngữ văn" in common
-    assert "Âm nhạc" not in common  # chỉ một tổ hợp học Âm nhạc
-    assert len(common["Toán"]["class_means"]) == 3
-    assert all(isinstance(m["mean"], float) for m in common["Toán"]["class_means"])
+    subjects = {s["name"]: s for s in body["subjects"]}
+    assert "Toán" in subjects and "Ngữ văn" in subjects
+    assert len(subjects["Toán"]["class_means"]) == 3 and subjects["Toán"]["class_count"] == 3
+    assert all(isinstance(m["mean"], float) for m in subjects["Toán"]["class_means"])
+    # Mọi môn của khối (D-116): môn lựa chọn chỉ một tổ hợp học vẫn có, chỉ với lớp học môn đó.
+    music = subjects["Âm nhạc"]
+    assert music["assessment_type"] == "comment" and music["class_count"] == 1
+    [only] = music["class_means"]
+    assert only["mean"] is None and only["comment_pass"] + only["comment_fail"] > 0
+    # Môn điểm số đứng trước môn nhận xét.
+    kinds = [s["assessment_type"] for s in body["subjects"]]
+    assert kinds == sorted(kinds, key=lambda kind: kind != "score")
 
 
 @pytest.mark.parametrize(
