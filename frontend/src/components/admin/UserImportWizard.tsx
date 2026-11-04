@@ -42,17 +42,38 @@ function PreviewTable({ preview }: { preview: UserImportPreview }) {
             <th>Họ và tên</th>
             <th>Email</th>
             <th>Vai trò</th>
+            <th>Bộ môn</th>
             <th>Ghi chú</th>
+            <th>Trạng thái</th>
           </tr>
         </thead>
         <tbody>
           {preview.rows.map((row) => (
-            <tr key={row.line} className={row.status === 'error' ? 'bg-red-50' : undefined}>
+            <tr
+              key={row.line}
+              className={
+                row.status === 'error'
+                  ? 'bg-red-50'
+                  : row.status === 'warning'
+                    ? 'bg-amber-50'
+                    : undefined
+              }
+            >
               <td className="tabular-nums">{row.line}</td>
               <td>{row.full_name ?? '—'}</td>
               <td>{row.email ?? '—'}</td>
               <td>{row.role_label ?? '—'}</td>
-              <td className={row.status === 'error' ? 'text-red-700' : 'text-slate-600'}>
+              <td>{row.specialty ?? '—'}</td>
+              <td>{row.note ?? '—'}</td>
+              <td
+                className={
+                  row.status === 'error'
+                    ? 'text-red-700'
+                    : row.status === 'warning'
+                      ? 'text-amber-800'
+                      : 'text-slate-600'
+                }
+              >
                 {row.messages.length > 0
                   ? row.messages.map((m) => m.message).join(' ')
                   : row.action === 'new'
@@ -258,8 +279,11 @@ export function UserImportWizard({ onDone }: { onDone?: () => void }) {
       <Stepper current={confirmMutation.isPending ? 3 : preview ? 2 : 1} />
       <p className="text-sm text-slate-600">
         Tệp .xlsx hoặc .csv (UTF-8), mỗi dòng một giáo viên, gồm cột <strong>Họ và tên</strong> và{' '}
-        <strong>Email</strong> (bắt buộc) cùng <strong>Vai trò</strong> (tuỳ chọn: "Giáo viên" hoặc
-        "Ban giám hiệu"; để trống là Giáo viên). Mỗi tài khoản được cấp một mật khẩu tạm ngẫu nhiên.
+        <strong>Email</strong> (bắt buộc) cùng <strong>Vai trò</strong> (tuỳ chọn: "Giáo viên Toán",
+        "Giáo viên Ngữ văn"…, "Giáo viên" hoặc "Ban giám hiệu"; để trống là Giáo viên). Môn cũng có
+        thể ghi ở cột riêng <strong>Bộ môn</strong>; thêm cột <strong>Ghi chú</strong> nếu cần phân
+        biệt người trùng tên. Môn không khớp 17 môn GDPT 2018 chỉ cảnh báo, tài khoản vẫn được tạo.
+        Mỗi tài khoản được cấp một mật khẩu tạm ngẫu nhiên.
         Email đã có tài khoản sẽ bị báo lỗi (chỉ tạo tài khoản mới).
       </p>
 

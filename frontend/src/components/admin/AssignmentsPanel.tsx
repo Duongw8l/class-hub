@@ -120,6 +120,7 @@ export function AssignmentsPanel({ school, sameGrade, teachers }: AssignmentsPan
                         label={`Giáo viên môn ${row.subject_name}`}
                         hideLabel
                         teachers={teachers}
+                        preferSubject={{ id: row.subject_id, name: row.subject_name }}
                         value={row.teacher?.id ?? null}
                         extra={row.teacher}
                         emptyLabel="— Chưa phân công —"

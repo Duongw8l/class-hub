@@ -3,7 +3,7 @@ import type { AdminUser } from '../../api/admin'
 import type { UserRole } from '../../api/auth'
 import { useResetPassword, useUpdateUser } from '../../hooks/useAdmin'
 import { ErrorAlert } from './shared'
-import { ROLE_OPTIONS } from './roles'
+import { ROLE_OPTIONS, roleText } from './roles'
 
 type Action = { userId: number; kind: 'lock' | 'unlock' | 'reset' }
 
@@ -39,7 +39,9 @@ export function UserTable({ users, selfId, onEdit, onPasswordIssued }: UserTable
         (status === '' || user.is_active === (status === 'active')) &&
         (needle === '' ||
           user.full_name.toLowerCase().includes(needle) ||
-          user.email.toLowerCase().includes(needle)),
+          user.email.toLowerCase().includes(needle) ||
+          (user.specialty?.toLowerCase().includes(needle) ?? false) ||
+          (user.note?.toLowerCase().includes(needle) ?? false)),
     )
   }, [users, text, role, status])
 
@@ -155,8 +157,13 @@ export function UserTable({ users, selfId, onEdit, onPasswordIssued }: UserTable
                       {self && <span className="ml-2 text-xs font-normal text-slate-500">(bạn)</span>}
                     </span>
                     <span className="block text-xs text-slate-500">{user.email}</span>
+                    {user.note && (
+                      <span className="block text-xs italic text-slate-500">{user.note}</span>
+                    )}
                   </th>
-                  <td className="px-3 py-2">{user.role_label}</td>
+                  <td className="px-3 py-2">
+                    {roleText(user.role, user.role_label, user.specialty)}
+                  </td>
                   <td className="px-3 py-2">{dutiesText(user)}</td>
                   <td className="px-3 py-2">
                     <span className={user.is_active ? 'badge-good' : 'badge-fail'}>

@@ -8,6 +8,7 @@ import {
   fetchAdminUsers,
   fetchClassAssignments,
   fetchSchool,
+  fetchSubjects,
   fetchTeachers,
   previewUserImport,
   removeAssignment,
@@ -56,6 +57,17 @@ export function useTeachers() {
   })
 }
 
+// 17 môn có sẵn, không đổi khi chạy; dùng cho ô "Vai trò: Giáo viên <môn>".
+export function useSubjects() {
+  const { token } = useAuth()
+  return useQuery({
+    queryKey: ['admin-subjects', token],
+    queryFn: ({ signal }) => fetchSubjects(signal),
+    enabled: token !== null,
+    staleTime: 5 * 60 * 1000,
+    retry,
+  })
+}
 export function useClassAssignments(classId: number) {
   const { token } = useAuth()
   return useQuery({
@@ -75,6 +87,7 @@ export function useRefreshAdmin() {
       client.invalidateQueries({ queryKey: ['admin-users'] }),
       client.invalidateQueries({ queryKey: ['admin-school'] }),
       client.invalidateQueries({ queryKey: ['admin-teachers'] }),
+      client.invalidateQueries({ queryKey: ['admin-subjects'] }),
       client.invalidateQueries({ queryKey: ['admin-assignments'] }),
       // Trang chủ và thanh bên của giáo viên đọc lớp chủ nhiệm / phân công từ đây.
       client.invalidateQueries({ queryKey: ['assignments'] }),

@@ -27,6 +27,7 @@ from app.classes.admin_schemas import (
     SchoolOut,
     SchoolYearIn,
     SchoolYearOut,
+    SubjectOut,
     TeacherOut,
 )
 from app.core.db import DbSession
@@ -60,6 +61,15 @@ def get_school(admin: AdminUser, session: DbSession) -> SchoolOut:
 )
 def list_teachers(admin: AdminUser, session: DbSession) -> list[TeacherOut]:
     return service.list_teachers(session)
+
+
+@router.get(
+    "/subjects",
+    response_model=list[SubjectOut],
+    summary="17 môn GDPT 2018, để chọn vai trò 'Giáo viên <môn>' (chỉ Admin)",
+)
+def list_subjects(admin: AdminUser, session: DbSession) -> list[SubjectOut]:
+    return service.list_subjects(session)
 
 
 @router.put(

@@ -15,8 +15,14 @@ Email = Annotated[
     str, StringConstraints(strip_whitespace=True, max_length=255, pattern=EMAIL_PATTERN)
 ]
 FullName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+# Ghi chú nhận diện: tự do, bỏ khoảng trắng thừa, tối đa 255 ký tự (khớp users.note).
+Note = Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]
 
 MIN_PASSWORD_LENGTH = 8
+
+# Các trường nhãn nhận diện cho phép gửi null tường minh để XOÁ giá trị (khác email/họ tên/vai trò,
+# nơi null nghĩa là "không đổi").
+_CLEARABLE_FIELDS = frozenset({"specialty_subject_id", "note"})
 
 
 class AdminUserOut(BaseModel):
@@ -28,27 +34,39 @@ class AdminUserOut(BaseModel):
     is_active: bool
     homeroom_class: str | None  # tên lớp đang chủ nhiệm
     assignment_count: int  # số cặp lớp-môn được phân công
+    # Nhãn nhận diện (không cấp quyền): bộ môn và ghi chú, giúp phân biệt GV trùng tên.
+    specialty_subject_id: int | None
+    specialty: str | None  # tên môn của specialty_subject_id (null khi chưa chọn)
+    note: str | None
 
 
 class UserCreateIn(BaseModel):
     email: Email
     full_name: FullName
     role: UserRole
+    specialty_subject_id: int | None = None  # id môn trong bảng subjects, hoặc null
+    note: Note | None = None
 
 
 class UserUpdateIn(BaseModel):
-    """Chỉ các trường có gửi lên mới đổi (`model_fields_set`)."""
+    """Chỉ các trường có gửi lên mới đổi (`model_fields_set`).
+
+    Riêng `specialty_subject_id` và `note` được phép gửi null tường minh để xoá nhãn.
+    """
 
     email: Email | None = None
     full_name: FullName | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+    specialty_subject_id: int | None = None
+    note: Note | None = None
 
     @model_validator(mode="after")
     def _no_null_values(self) -> Self:
-        # null nghĩa là "không đổi" chứ không phải xoá giá trị; gửi null tường minh là nhầm lẫn.
+        # null nghĩa là "không đổi" chứ không phải xoá giá trị; gửi null tường minh là nhầm lẫn,
+        # trừ các trường nhãn nhận diện (null = xoá nhãn).
         for name in self.model_fields_set:
-            if getattr(self, name) is None:
+            if name not in _CLEARABLE_FIELDS and getattr(self, name) is None:
                 raise ValueError(f"'{name}' không được để trống.")
         if not self.model_fields_set:
             raise ValueError("Không có trường nào để đổi.")
@@ -95,6 +113,8 @@ class UserImportRowOut(BaseModel):
     email: str | None
     role: UserRole | None  # None khi vai trò trống/không hợp lệ
     role_label: str | None
+    specialty: str | None  # tên bộ môn khớp danh mục; None khi để trống hoặc không khớp
+    note: str | None
     status: Literal["ok", "warning", "error"]
     action: Literal["new"] | None  # chỉ tạo tài khoản mới; None khi dòng lỗi
     messages: list[UserImportMessageOut]

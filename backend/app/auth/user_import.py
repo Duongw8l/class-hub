@@ -31,6 +31,7 @@ from app.auth.admin_schemas import (
 )
 from app.auth.audit import record_access
 from app.auth.models import User, UserImportJob
+from app.classes.models import Subject
 from app.core.authorize import AuthorizationError, authorize_admin
 from app.core.enums import AuditAction, ImportStatus, UserRole
 from app.core.labels import label_vi
@@ -41,6 +42,7 @@ from app.imports.validation import Message, _cell, _check_duplicate, _header, co
 
 MAX_NAME_LENGTH = 100  # khớp users.full_name
 MAX_EMAIL_LENGTH = 255  # khớp users.email
+MAX_NOTE_LENGTH = 255  # khớp users.note
 EMAIL_RE = re.compile(EMAIL_PATTERN)
 JOB_TTL = timedelta(hours=24)
 PREVIEW_ROW_LIMIT = 500  # số dòng "bình thường" tối đa trong bản xem trước; dòng lỗi luôn có đủ
@@ -68,6 +70,18 @@ USER_IMPORT_FIELDS: list[FieldSpec] = [
         "role",
         "Vai trò",
         frozenset({"vaitro", "role", "chucvu", "chucdanh", "vitri"}),
+        required=False,
+    ),
+    FieldSpec(
+        "specialty",
+        "Bộ môn",
+        frozenset({"bomon", "mon", "monhoc", "chuyenmon", "subject", "specialty", "mongiangday"}),
+        required=False,
+    ),
+    FieldSpec(
+        "note",
+        "Ghi chú",
+        frozenset({"ghichu", "note", "notes", "chuthich", "remark", "ghichu/chuthich"}),
         required=False,
     ),
 ]
@@ -101,18 +115,42 @@ def parse_user_role(text: str) -> UserRole | None:
     return None
 
 
+_TEACHER_PREFIXES = ("giaovienmon", "giaovien", "gvmon", "gv")
+
+
+def _teacher_with_subject(
+    text: str, subjects_by_norm: Mapping[str, tuple[int, str]]
+) -> tuple[int, str] | None:
+    """'Giáo viên Toán' → (id, 'Toán'); không khớp môn nào trong danh mục → None."""
+    key = normalize_header(text)
+    for prefix in _TEACHER_PREFIXES:
+        if key.startswith(prefix) and key[len(prefix) :] in subjects_by_norm:
+            return subjects_by_norm[key[len(prefix) :]]
+    return None
+
+
 @dataclass
 class UserRowResult:
     line: int
     full_name: str | None = None
     email: str | None = None
     role: UserRole | None = None
+    # Nhãn nhận diện (không cấp quyền). specialty_subject_id null khi để trống/không khớp danh mục.
+    specialty_subject_id: int | None = None
+    specialty: str | None = None  # tên môn đã khớp (để hiện lại trong bản xem trước)
+    note: str | None = None
     status: Literal["ok", "warning", "error"] = "ok"
     action: Literal["new"] | None = None
     messages: list[Message] = field(default_factory=list)
 
     def error(self, column: str | None, message: str) -> None:
         self.status = "error"
+        self.messages.append(Message(column, message))
+
+    def warn(self, column: str | None, message: str) -> None:
+        # Cảnh báo không chặn xác nhận (khác lỗi); không hạ cấp một dòng đã lỗi.
+        if self.status != "error":
+            self.status = "warning"
         self.messages.append(Message(column, message))
 
     def finish(self) -> "UserRowResult":
@@ -129,12 +167,15 @@ def validate_users(
     mapping: Mapping[str, str | None],
     *,
     existing_emails: frozenset[str],
+    subjects_by_norm: Mapping[str, tuple[int, str]],
 ) -> list[UserRowResult]:
-    """Kiểm từng dòng. Thuần, không đụng DB: nhận sẵn các email đã có (đã thường hoá)."""
+    """Kiểm từng dòng. Thuần, không đụng DB: nhận sẵn email đã có và danh mục môn (đã chuẩn hoá)."""
     index = column_index(table.headers, mapping)
     name_column = _header(table.headers, index, "full_name", "Họ và tên")
     email_column = _header(table.headers, index, "email", "Email")
     role_column = _header(table.headers, index, "role", "Vai trò")
+    specialty_column = _header(table.headers, index, "specialty", "Bộ môn")
+    note_column = _header(table.headers, index, "note", "Ghi chú")
     seen_email: dict[str, int] = {}
     results: list[UserRowResult] = []
     for row in table.rows:
@@ -163,13 +204,43 @@ def validate_users(
 
         role_text = _cell(row, index, "role")
         role = parse_user_role(role_text)
+        role_subject = None
+        if role is None:
+            # "Giáo viên Toán" / "GV Ngữ văn": vai trò Giáo viên kèm môn (D-112).
+            role_subject = _teacher_with_subject(role_text, subjects_by_norm)
+            if role_subject is not None:
+                role = UserRole.TEACHER
         if role is None:
             result.error(
                 role_column,
-                f"Vai trò '{role_text}' không hợp lệ (chỉ nhận 'Giáo viên' hoặc 'Ban giám hiệu').",
+                f"Vai trò '{role_text}' không hợp lệ (nhận 'Giáo viên', 'Giáo viên <môn>' như "
+                "'Giáo viên Toán', hoặc 'Ban giám hiệu').",
             )
         else:
             result.role = role
+
+        # Bộ môn: chỉ là nhãn. Để trống thì bỏ qua; không khớp danh mục thì cảnh báo (không chặn),
+        # tài khoản vẫn được tạo nhưng không gắn bộ môn.
+        specialty_text = _squash(_cell(row, index, "specialty"))
+        if role_subject is not None and not specialty_text:
+            result.specialty_subject_id, result.specialty = role_subject
+        elif specialty_text and role is UserRole.PRINCIPAL:
+            result.warn(specialty_column, "Ban giám hiệu không có môn dạy; bỏ qua cột Bộ môn.")
+        elif specialty_text:
+            match = subjects_by_norm.get(normalize_header(specialty_text))
+            if match is None:
+                result.warn(
+                    specialty_column,
+                    f"Không có bộ môn '{specialty_text}' trong danh mục; sẽ tạo không gắn bộ môn.",
+                )
+            else:
+                result.specialty_subject_id, result.specialty = match
+
+        note = _squash(_cell(row, index, "note"))
+        if len(note) > MAX_NOTE_LENGTH:
+            result.warn(note_column, f"Ghi chú dài quá {MAX_NOTE_LENGTH} ký tự; đã cắt bớt.")
+            note = note[:MAX_NOTE_LENGTH]
+        result.note = note or None
 
         results.append(result.finish())
     return results
@@ -197,6 +268,8 @@ def _row_out(result: UserRowResult) -> UserImportRowOut:
         email=result.email,
         role=result.role,
         role_label=None if result.role is None else label_vi(result.role),
+        specialty=result.specialty,
+        note=result.note,
         status=result.status,
         action=result.action,
         messages=[
@@ -233,6 +306,12 @@ def _existing_emails(session: Session, emails: Sequence[str]) -> frozenset[str]:
         select(func.lower(User.email)).where(func.lower(User.email).in_(list(emails)))
     )
     return frozenset(email for (email,) in rows)
+
+
+def _subjects_by_norm(session: Session) -> dict[str, tuple[int, str]]:
+    """Danh mục môn, khoá theo tên đã chuẩn hoá, để khớp cột 'Bộ môn' trong tệp (không dấu/hoa)."""
+    rows = session.execute(select(Subject.id, Subject.name))
+    return {normalize_header(name): (sid, name) for sid, name in rows}
 
 
 def create_preview(
@@ -285,13 +364,24 @@ def create_preview(
         )
 
     existing = _existing_emails(session, _emails_in(table, resolution.mapping))
-    results = validate_users(table, resolution.mapping, existing_emails=existing)
+    results = validate_users(
+        table,
+        resolution.mapping,
+        existing_emails=existing,
+        subjects_by_norm=_subjects_by_norm(session),
+    )
     summary = _summary(results)
     records = (
         []
         if summary.error_rows
         else [
-            {"full_name": r.full_name, "email": r.email, "role": r.role.value}
+            {
+                "full_name": r.full_name,
+                "email": r.email,
+                "role": r.role.value,
+                "specialty_subject_id": r.specialty_subject_id,
+                "note": r.note,
+            }
             for r in results
             if r.role is not None and r.full_name is not None and r.email is not None
         ]
@@ -363,6 +453,8 @@ def confirm_job(session: Session, admin: User, job_id: uuid.UUID) -> UserImportC
                 role=UserRole(record["role"]),
                 password_hash=hash_password(password),
                 is_active=True,
+                specialty_subject_id=record.get("specialty_subject_id"),
+                note=record.get("note"),
             )
             session.add(user)
             created_users.append((user, password))

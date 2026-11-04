@@ -125,6 +125,9 @@ def test_list_has_roles_homeroom_and_assignments_and_never_a_password_hash(
         "is_active",
         "homeroom_class",
         "assignment_count",
+        "specialty_subject_id",
+        "specialty",
+        "note",
     }
 
 
@@ -219,6 +222,107 @@ def test_each_new_account_gets_a_different_password(
     second = create(api_client, headers, email="a2@example.com").json()["temporary_password"]
 
     assert first != second
+
+
+# --- Bộ môn và ghi chú (nhãn nhận diện, không cấp quyền) -----------------------------------------
+
+
+def _a_subject(api_client: TestClient, headers: dict[str, str]) -> dict[str, Any]:
+    response = api_client.get(f"{API}/admin/subjects", headers=headers)
+    assert response.status_code == 200
+    subjects = response.json()
+    assert subjects, "danh mục môn rỗng"
+    return subjects[0]
+
+
+def test_subjects_endpoint_lists_catalog_for_admin_only(
+    api_client: TestClient, auth_headers: Headers
+) -> None:
+    ok = api_client.get(f"{API}/admin/subjects", headers=auth_headers(ADMIN))
+    assert ok.status_code == 200
+    rows = ok.json()
+    assert len(rows) > 0
+    assert set(rows[0]) == {"id", "name", "is_elective"}
+    # Không phải Admin thì bị chặn (403), chưa đăng nhập thì 401.
+    denied = api_client.get(f"{API}/admin/subjects", headers=auth_headers(NON_ADMINS[0]))
+    assert denied.status_code == 403
+    assert api_client.get(f"{API}/admin/subjects").status_code == 401
+
+
+def test_create_stores_specialty_and_note(
+    api_client: TestClient, auth_headers: Headers, db_session: Session
+) -> None:
+    headers = auth_headers(ADMIN)
+    subject = _a_subject(api_client, headers)
+
+    response = create(api_client, headers, specialty_subject_id=subject["id"], note="Tổ Tự nhiên")
+
+    assert response.status_code == 201
+    user = response.json()["user"]
+    assert user["specialty_subject_id"] == subject["id"]
+    assert user["specialty"] == subject["name"]  # trả kèm tên môn để hiển thị
+    assert user["note"] == "Tổ Tự nhiên"
+    stored = db_session.scalar(select(User).where(User.id == user["id"]))
+    assert stored is not None
+    assert stored.specialty_subject_id == subject["id"]
+    assert stored.note == "Tổ Tự nhiên"
+
+
+def test_create_rejects_unknown_specialty(api_client: TestClient, auth_headers: Headers) -> None:
+    response = create(api_client, auth_headers(ADMIN), specialty_subject_id=10_000_000)
+    assert response.status_code == 422
+    assert "Bộ môn" in response.json()["detail"]
+
+
+def test_update_sets_then_clears_specialty_and_note(
+    api_client: TestClient, auth_headers: Headers, db_session: Session
+) -> None:
+    headers = auth_headers(ADMIN)
+    subject = _a_subject(api_client, headers)
+    target = user_id(db_session, "gvcn.11a2@example.com")  # GVCN thuần: chưa có bộ môn
+
+    set_resp = api_client.patch(
+        f"{API}/admin/users/{target}",
+        headers=headers,
+        json={"specialty_subject_id": subject["id"], "note": "Dạy khối 11"},
+    )
+    assert set_resp.status_code == 200
+    assert set_resp.json()["specialty"] == subject["name"]
+    assert set_resp.json()["note"] == "Dạy khối 11"
+
+    # null tường minh = xoá nhãn (khác các trường khác, nơi null bị từ chối).
+    clear_resp = api_client.patch(
+        f"{API}/admin/users/{target}",
+        headers=headers,
+        json={"specialty_subject_id": None, "note": None},
+    )
+    assert clear_resp.status_code == 200
+    assert clear_resp.json()["specialty_subject_id"] is None
+    assert clear_resp.json()["specialty"] is None
+    assert clear_resp.json()["note"] is None
+
+
+def test_only_teachers_keep_a_subject(
+    api_client: TestClient, auth_headers: Headers, db_session: Session
+) -> None:
+    # "Giáo viên <môn>" (D-112): Ban giám hiệu không có môn; đổi khỏi vai trò giáo viên thì mất môn.
+    headers = auth_headers(ADMIN)
+    subject = _a_subject(api_client, headers)
+
+    principal = create(
+        api_client, headers, role="principal", specialty_subject_id=subject["id"]
+    ).json()["user"]
+    assert principal["specialty_subject_id"] is None
+
+    teacher = create(
+        api_client, headers, email="gv.mon@example.com", specialty_subject_id=subject["id"]
+    ).json()["user"]
+    assert teacher["specialty"] == subject["name"]
+    moved = api_client.patch(
+        f"{API}/admin/users/{teacher['id']}", headers=headers, json={"role": "principal"}
+    )
+    assert moved.status_code == 200
+    assert moved.json()["specialty_subject_id"] is None and moved.json()["specialty"] is None
 
 
 # --- Sửa, khoá, vai trò --------------------------------------------------------------------------

@@ -11,9 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import AuditLog, User, UserImportJob
 from app.auth.user_import import USER_IMPORT_FIELDS, parse_user_role, validate_users
+from app.classes.models import Subject
 from app.core.enums import AuditAction, ImportStatus, UserRole
 from app.core.security import verify_password
-from app.imports.columns import resolve_mapping
+from app.imports.columns import normalize_header, resolve_mapping
 from app.imports.parsing import table_from_grid
 
 pytestmark = pytest.mark.db
@@ -35,21 +36,25 @@ VALID_ROWS = [
 ]
 
 
-def csv_bytes(rows: list[list[str]]) -> bytes:
+def csv_bytes(rows: list[list[str]], header: list[str] = HEADER) -> bytes:
     buffer = io.StringIO()
-    buffer.write(",".join(HEADER) + "\r\n")
+    buffer.write(",".join(header) + "\r\n")
     for row in rows:
         buffer.write(",".join(row) + "\r\n")
     return b"\xef\xbb\xbf" + buffer.getvalue().encode("utf-8")
 
 
 def preview(
-    client: TestClient, headers: dict[str, str], rows: list[list[str]], name: str = "gv.csv"
+    client: TestClient,
+    headers: dict[str, str],
+    rows: list[list[str]],
+    name: str = "gv.csv",
+    header: list[str] = HEADER,
 ) -> object:
     return client.post(
         f"{API}/admin/users/import",
         headers=headers,
-        files={"file": (name, csv_bytes(rows), "text/csv")},
+        files={"file": (name, csv_bytes(rows, header), "text/csv")},
     )
 
 
@@ -79,10 +84,15 @@ def test_parse_user_role(text: str, expected: UserRole | None) -> None:
     assert parse_user_role(text) is expected
 
 
-def _validate(rows: list[list[str]], existing: frozenset[str] = frozenset()):
-    table = table_from_grid([HEADER, *rows], 1)
+def _validate(
+    rows: list[list[str]],
+    existing: frozenset[str] = frozenset(),
+    header: list[str] = HEADER,
+    subjects: dict[str, tuple[int, str]] | None = None,
+):
+    table = table_from_grid([header, *rows], 1)
     mapping = resolve_mapping(table.headers, USER_IMPORT_FIELDS).mapping
-    return validate_users(table, mapping, existing_emails=existing)
+    return validate_users(table, mapping, existing_emails=existing, subjects_by_norm=subjects or {})
 
 
 def test_valid_rows_are_new_with_parsed_roles() -> None:
@@ -123,6 +133,62 @@ def test_email_already_in_db_is_an_error() -> None:
     rows = [["Người Mới", "da.co@truonghoc.local", "Giáo viên"]]
     results = _validate(rows, existing=frozenset({"da.co@truonghoc.local"}))
     assert results[0].status == "error" and "đã có tài khoản" in results[0].messages[0].message
+
+
+HEADER_EXT = ["Họ và tên", "Email", "Vai trò", "Bộ môn", "Ghi chú"]
+
+
+def test_specialty_matches_catalog_and_unknown_only_warns() -> None:
+    rows = [
+        ["GV Một", "sp1@truonghoc.local", "Giáo viên", "Toán", "Tổ Tự nhiên"],
+        ["GV Hai", "sp2@truonghoc.local", "Giáo viên", "Môn Lạ", ""],
+    ]
+    subjects = {normalize_header("Toán"): (7, "Toán")}
+    results = _validate(rows, header=HEADER_EXT, subjects=subjects)
+
+    assert results[0].status == "ok"
+    assert results[0].specialty_subject_id == 7 and results[0].specialty == "Toán"
+    assert results[0].note == "Tổ Tự nhiên"
+    # Bộ môn không khớp danh mục: chỉ cảnh báo (không chặn), không gắn bộ môn.
+    assert results[1].status == "warning"
+    assert results[1].specialty_subject_id is None and results[1].specialty is None
+    assert "Môn Lạ" in results[1].messages[0].message
+
+
+def test_role_column_accepts_teacher_with_subject() -> None:
+    # "Giáo viên Toán" / "GV Ngữ văn" trong cột Vai trò = Giáo viên kèm môn (D-112).
+    rows = [
+        ["GV Một", "r1@truonghoc.local", "Giáo viên Toán"],
+        ["GV Hai", "r2@truonghoc.local", "GV Ngữ văn"],
+        ["GV Ba", "r3@truonghoc.local", "Giáo viên Môn Lạ"],
+    ]
+    subjects = {
+        normalize_header("Toán"): (2, "Toán"),
+        normalize_header("Ngữ văn"): (1, "Ngữ văn"),
+    }
+    results = _validate(rows, subjects=subjects)
+
+    assert results[0].role is UserRole.TEACHER and results[0].specialty == "Toán"
+    assert results[1].role is UserRole.TEACHER and results[1].specialty_subject_id == 1
+    assert results[2].status == "error"  # môn không có thì vai trò không hợp lệ
+
+
+def test_import_stores_specialty_and_note_on_created_users(
+    api_client: TestClient, auth_headers: Headers, db_session: Session
+) -> None:
+    headers = auth_headers(ADMIN)
+    toan_id = db_session.scalar(select(Subject.id).where(Subject.name == "Toán"))
+    assert toan_id is not None
+    rows = [["GV Có Môn", "import.comon@truonghoc.local", "Giáo viên", "Toán", "Ghi chú X"]]
+
+    body = preview(api_client, headers, rows, header=HEADER_EXT).json()
+    assert body["summary"]["error_rows"] == 0 and body["can_confirm"] is True
+    assert body["rows"][0]["specialty"] == "Toán" and body["rows"][0]["note"] == "Ghi chú X"
+
+    confirm(api_client, headers, body["job_id"])
+    user = db_session.scalar(select(User).where(User.email == "import.comon@truonghoc.local"))
+    assert user is not None
+    assert user.specialty_subject_id == toan_id and user.note == "Ghi chú X"
 
 
 # --- Phân quyền -------------------------------------------------------------------------------
