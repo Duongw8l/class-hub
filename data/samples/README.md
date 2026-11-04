@@ -59,3 +59,13 @@ curl -s -X POST http://localhost:8000/api/v1/imports/<job_id>/confirm -H "Author
 ```
 
 Thử quyền: `gv.van.11@example.com` nhập điểm Toán bị 403; `gv.toan.11@example.com` nhập điểm danh 11A2 bị 403 (dạy Toán ở đó nhưng không chủ nhiệm); `bgh1@example.com` và `admin@example.com` luôn bị 403.
+
+## `diem-30-lop/`: bộ điểm 30 lớp (khối 10, 11, 12 × 10 lớp)
+
+Sinh bằng `build_diem_30_lop.py` (cần DB đã migrate vì số đầu điểm thường xuyên và ĐTB đọc từ `settings`; chạy trong container backend nếu máy không có môi trường Python của back-end). Toàn bộ là dữ liệu giả lập; mã học sinh `HS26KKLLSS` không trùng seed.
+
+- `danh-sach-hoc-sinh/<lớp>.xlsx`: 40 học sinh mỗi lớp. Admin nhập vào lớp trước.
+- `diem/<lớp>/<môn>-hk<1|2>.xlsx`: 720 tệp, mỗi tệp một lớp, một môn, một học kỳ. Giáo viên bộ môn được phân công nhập ở trang "Nhập điểm".
+- `tong-hop.xlsx`: hướng dẫn, môn của từng lớp (8 bắt buộc + 4 lựa chọn theo tổ hợp của seed), và danh sách học sinh yếu cài sẵn (3 em yếu nhiều môn + 1 em yếu Toán mỗi lớp).
+
+Đã thử nhập thật danh sách học sinh và đủ 24 tệp điểm của các lớp 10A1, 11A2, 12A3, 12A10 trên DB test: không lỗi, không cảnh báo, 40 dòng "Mới" mỗi tệp.
