@@ -1,0 +1,32 @@
+sequenceDiagram
+    autonumber
+    actor GV as GV bộ môn
+    participant FE as Front-end (Bảng điểm)
+    participant API as API điểm học sinh
+    participant AZ as authorize / authorize_write
+    participant SV as imports.manual
+    participant AN as Analytics
+    participant DB as PostgreSQL
+    GV->>FE: Bấm "Sửa" ở dòng học sinh
+    FE->>API: GET /classes/{c}/subjects/{s}/students/{st}/scores?semester=
+    API->>AZ: authorize (quyền xem)
+    API->>SV: Đầu điểm hiện có, số ô TX, can_edit, lịch sử
+    SV->>DB: assessments, assessment_changes
+    API-->>FE: Dữ liệu hộp thoại
+    GV->>FE: Sửa ô điểm, chọn lý do, ghi chú
+    FE->>API: PUT cùng đường dẫn (semester, entries, reason, note)
+    API->>AZ: authorize_write (phân công lớp–môn)
+    API->>SV: save_student_scores
+    SV->>SV: Kiểm 0–10, 1 chữ số thập phân, số ô TX, loại môn
+    alt Không ô nào đổi giá trị
+        API-->>FE: 400 "Không có điểm nào thay đổi."
+    else Có thay đổi
+        SV->>DB: Một transaction: ghi assessments, thêm assessment_changes (cũ → mới), audit edit_scores
+        API->>DB: on_data_changed: tính lại cảnh báo sớm
+        API-->>FE: Điểm mới và lịch sử
+        FE->>API: Nạp lại bảng điểm môn
+        API->>AN: build_subject_scores (ĐTB tính khi đọc)
+        AN-->>API: Bảng điểm với ĐTB mới
+        API-->>FE: Bảng điểm
+        FE-->>GV: "Đã lưu n đầu điểm"
+    end

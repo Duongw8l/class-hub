@@ -1,0 +1,15 @@
+stateDiagram-v2
+    direction LR
+    state "Mới (new)" as new
+    state "Đã trao đổi (contacted)" as contacted
+    state "Báo nhầm (false_alarm)" as false_alarm
+    state "Lịch sử (bị dòng mới thay thế)" as history
+    [*] --> new: Luật hoặc ML phát hiện nguy cơ
+    new --> contacted: GVCN ghi nhận đã trao đổi
+    new --> false_alarm: GVCN đánh dấu báo nhầm
+    contacted --> new: GVCN đặt lại
+    false_alarm --> new: GVCN đặt lại
+    new --> history: Dữ liệu đổi làm mức / lý do đổi
+    contacted --> history: Dữ liệu đổi làm mức / lý do đổi
+    false_alarm --> history: Dữ liệu đổi làm mức / lý do đổi
+    history --> [*]

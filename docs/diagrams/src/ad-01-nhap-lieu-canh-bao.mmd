@@ -1,0 +1,19 @@
+flowchart TD
+    S((Bắt đầu)) --> A[Giáo viên chọn loại dữ liệu và tải tệp]
+    A --> B{Có quyền ghi?}
+    B -- Không --> X1[Báo không có quyền] --> E((Kết thúc))
+    B -- Có --> C[Đọc tệp, dò dòng tiêu đề, ánh xạ cột]
+    C --> D{Đủ cột bắt buộc?}
+    D -- Không --> D1[Giáo viên chọn cột tương ứng] --> C
+    D -- Có --> F[Kiểm từng dòng, tạo bản xem trước]
+    F --> G{Có dòng lỗi?}
+    G -- Có --> G1[Giáo viên sửa tệp rồi tải lại] --> A
+    G -- Không --> H[Giáo viên xác nhận]
+    H --> I[Ghi dữ liệu trong một transaction, ghi nhật ký]
+    I --> J[Tính lại cảnh báo sớm của lớp: luật + ML]
+    J --> K{Có cảnh báo mới hoặc đổi mức?}
+    K -- Không --> E
+    K -- Có --> L[Hiện trong danh sách Học sinh cần hỗ trợ của GVCN, BGH]
+    L --> M{GVCN xem lý do và quyết định}
+    M -- Đã trao đổi --> N[Ghi nhận Đã trao đổi] --> E
+    M -- Báo nhầm --> O[Ghi nhận Báo nhầm, dùng để đánh giá lại mô hình] --> E

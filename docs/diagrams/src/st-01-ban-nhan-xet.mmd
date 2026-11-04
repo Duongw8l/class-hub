@@ -1,0 +1,12 @@
+stateDiagram-v2
+    direction LR
+    state "Nháp (draft)" as draft
+    state "Nháp, cần tự viết (needs_manual)" as manual
+    state "Đã duyệt (approved)" as approved
+    [*] --> draft: AI sinh, đạt kiểm tra
+    [*] --> manual: AI sinh, không đạt sau 2 lần viết lại
+    manual --> draft: Giáo viên tự viết và lưu
+    draft --> draft: Sửa văn bản / sinh lại kèm góp ý
+    draft --> approved: Giáo viên duyệt (văn bản không rỗng)
+    approved --> draft: Giáo viên sửa văn bản
+    approved --> approved: Xuất PDF

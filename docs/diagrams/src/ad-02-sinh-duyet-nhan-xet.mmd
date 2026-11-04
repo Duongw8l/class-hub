@@ -1,0 +1,21 @@
+flowchart TD
+    S((Bắt đầu)) --> A[Giáo viên chọn lớp, loại nhận xét, kỳ]
+    A --> B{Có quyền với lớp / môn?}
+    B -- Không --> X[Báo không có quyền] --> E((Kết thúc))
+    B -- Có --> C[Analytics xuất số liệu từng học sinh]
+    C --> D[Ẩn danh: bỏ họ tên, mã HS, ngày sinh, phụ huynh]
+    D --> F[LLM viết theo mẫu: điểm mạnh, cần cố gắng, gợi ý]
+    F --> G{Đạt kiểm tra số liệu và từ cấm?}
+    G -- Có --> H[Lưu bản nháp]
+    G -- Không --> I{Đã viết lại đủ 2 lần?}
+    I -- Chưa --> F
+    I -- Rồi --> J[Đánh dấu cần tự viết]
+    J --> K[Giáo viên tự viết]
+    K --> H
+    H --> L[Giáo viên đọc, sửa hoặc sinh lại kèm góp ý]
+    L --> M{Duyệt?}
+    M -- Chưa --> L
+    M -- Có --> N[Lưu bản đã duyệt, ghi nhật ký]
+    N --> O{Xuất PDF?}
+    O -- Có --> P[Tạo PDF, ghép họ tên thật từ DB] --> E
+    O -- Không --> E

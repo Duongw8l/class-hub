@@ -1,0 +1,159 @@
+erDiagram
+    SCHOOL_YEARS ||--o{ CLASSES : "gồm"
+    USERS |o--o{ CLASSES : "chủ nhiệm"
+    CLASSES ||--o{ CLASS_STUDENTS : "có"
+    STUDENTS ||--o{ CLASS_STUDENTS : "được xếp"
+    CLASSES ||--o{ TEACHING_ASSIGNMENTS : "phân công"
+    SUBJECTS ||--o{ TEACHING_ASSIGNMENTS : "môn"
+    USERS ||--o{ TEACHING_ASSIGNMENTS : "dạy"
+    SUBJECTS |o--o{ USERS : "bộ môn (nhãn)"
+    CLASS_STUDENTS ||--o{ ASSESSMENTS : "điểm"
+    SUBJECTS ||--o{ ASSESSMENTS : "môn"
+    CLASS_STUDENTS ||--o{ ASSESSMENT_CHANGES : "lịch sử sửa"
+    USERS ||--o{ ASSESSMENT_CHANGES : "người sửa"
+    CLASS_STUDENTS ||--o{ ATTENDANCE : "điểm danh"
+    CLASS_STUDENTS ||--o{ CONDUCT_RESULTS : "rèn luyện"
+    CLASS_STUDENTS ||--o{ EXAM_REGISTRATIONS : "đăng ký thi"
+    CLASS_STUDENTS ||--o{ RISK_ALERTS : "cảnh báo"
+    SCHOOL_YEARS ||--o{ REPORTS : "năm"
+    CLASSES |o--o{ REPORTS : "lớp"
+    USERS ||--o{ REPORTS : "tạo, duyệt"
+    REGULATION_DOCUMENTS ||--o{ REGULATION_CHUNKS : "tách thành"
+    USERS ||--o{ AI_LOGS : "hỏi"
+    USERS ||--o{ AUDIT_LOGS : "thao tác"
+
+    USERS {
+        int id PK
+        string email UK
+        string password_hash
+        string full_name
+        string role "teacher, principal, admin"
+        bool is_active
+        bool must_change_password
+        int specialty_subject_id FK
+        string note
+    }
+    SCHOOL_YEARS {
+        int id PK
+        string name UK
+        date start_date
+        date end_date
+        bool is_current
+    }
+    CLASSES {
+        int id PK
+        int school_year_id FK
+        int grade_level "10, 11, 12"
+        string name
+        int homeroom_teacher_id FK
+    }
+    STUDENTS {
+        int id PK
+        string student_code UK
+        string full_name
+        date date_of_birth
+        string guardian_name
+        string guardian_phone
+    }
+    CLASS_STUDENTS {
+        int id PK
+        int class_id FK
+        int student_id FK
+    }
+    SUBJECTS {
+        int id PK
+        string name UK
+        string assessment_type "score, comment"
+        int periods_per_year
+        bool is_elective
+    }
+    TEACHING_ASSIGNMENTS {
+        int id PK
+        int class_id FK
+        int subject_id FK
+        int teacher_id FK
+    }
+    ASSESSMENTS {
+        int id PK
+        int class_student_id FK
+        int subject_id FK
+        int semester "1, 2"
+        string kind "tx, gk, ck"
+        int seq
+        decimal score
+        string comment_result "pass, fail"
+    }
+    ASSESSMENT_CHANGES {
+        int id PK
+        int class_student_id FK
+        int subject_id FK
+        string kind
+        decimal old_score
+        decimal new_score
+        string reason
+        int changed_by FK
+        datetime changed_at
+    }
+    ATTENDANCE {
+        int id PK
+        int class_student_id FK
+        date date
+        string status
+    }
+    CONDUCT_RESULTS {
+        int id PK
+        int class_student_id FK
+        string period "hk1, hk2, year"
+        string level
+    }
+    EXAM_REGISTRATIONS {
+        int id PK
+        int class_student_id FK
+        int subject_id FK
+    }
+    RISK_ALERTS {
+        int id PK
+        int class_student_id FK
+        string level
+        float risk_score
+        json reasons
+        string teacher_status
+    }
+    REPORTS {
+        int id PK
+        int school_year_id FK
+        int class_id FK
+        string type
+        string scope
+        int target_id
+        string status "draft, approved"
+        text draft_text
+        text final_text
+        int approved_by FK
+    }
+    REGULATION_DOCUMENTS {
+        int id PK
+        string name
+        string status
+    }
+    REGULATION_CHUNKS {
+        int id PK
+        int document_id FK
+        string article
+        text content
+        vector embedding
+    }
+    AI_LOGS {
+        int id PK
+        int user_id FK
+        text question
+        json tools_called
+        text answer
+    }
+    AUDIT_LOGS {
+        int id PK
+        int user_id FK
+        string action
+        int class_id
+        json details
+    }

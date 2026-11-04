@@ -1,0 +1,17 @@
+flowchart TD
+    S((Bắt đầu)) --> A[Admin nhập tên năm, ngày bắt đầu, ngày kết thúc]
+    A --> B{Trùng tên hoặc chồng ngày với năm khác?}
+    B -- Có --> B1[Báo lỗi] --> A
+    B -- Không --> C{Chọn chép lớp và cho học sinh lên lớp?}
+    C -- Không --> D[Tạo năm trống]
+    C -- Có --> F[Tạo lại các lớp của năm liền trước]
+    F --> G[Học sinh 10Ax lên 11Ax, 11Ax lên 12Ax]
+    G --> H[Khối 12 ra trường, khối 10 để trống]
+    H --> I[GVCN và phân công để trống]
+    D --> J{Đặt làm năm hiện hành?}
+    I --> J
+    J -- Có --> K[Bỏ cờ hiện hành của năm cũ, đặt cho năm mới]
+    J -- Không --> L[Giữ năm hiện hành cũ]
+    K --> M[Admin gán GVCN, phân công, nhập học sinh khối 10, xử lý lưu ban]
+    L --> M
+    M --> E((Kết thúc))

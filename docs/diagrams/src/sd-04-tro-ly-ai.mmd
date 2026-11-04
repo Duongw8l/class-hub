@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    actor U as Giáo viên / BGH
+    participant FE as Front-end (khung chat)
+    participant AS as assistant.service
+    participant PS as Pseudonymizer
+    participant LLM as Dịch vụ LLM
+    participant T as tools (7 hàm)
+    participant AZ as authorize()
+    participant AN as Analytics / RAG
+    participant DB as PostgreSQL
+    U->>FE: Câu hỏi (kèm lớp, môn, kỳ, năm đang xem)
+    FE->>AS: POST /assistant/chat
+    AS->>AS: Kiểm vai trò, giới hạn 10 câu/phút, authorize màn hình đang mở
+    AS->>PS: Thay họ tên, mã HS bằng HS_xx
+    AS->>LLM: System prompt + bối cảnh + câu hỏi + mô tả 7 hàm
+    loop Tối đa 4 vòng, mỗi vòng tối đa 4 hàm
+        LLM-->>AS: Yêu cầu gọi hàm
+        AS->>T: Gọi hàm, phạm vi lấy từ phiên đăng nhập
+        T->>AZ: authorize(user, class_id, subject_id)
+        alt Ngoài quyền
+            AZ-->>T: forbidden (không đọc dữ liệu)
+        else Được phép
+            T->>AN: Hàm Analytics hoặc search_regulation
+            AN->>DB: Đọc dữ liệu
+            AN-->>T: Số liệu đã tính / điều khoản
+        end
+        T-->>AS: Kết quả chỉ có mã tạm
+        AS->>LLM: Trả kết quả hàm
+    end
+    LLM-->>AS: Câu trả lời
+    AS->>AS: Đối chiếu mọi con số với kết quả hàm
+    AS->>PS: Đổi mã tạm về tên để hiển thị
+    AS->>DB: Lưu ai_logs (bản đã ẩn danh)
+    AS-->>FE: Câu trả lời, mục Nguồn, số chưa đối chiếu được
+    FE-->>U: Hiển thị, cho đánh giá đúng / sai

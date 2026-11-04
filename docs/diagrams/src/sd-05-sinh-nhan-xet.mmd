@@ -1,0 +1,38 @@
+sequenceDiagram
+    autonumber
+    actor GV as Giáo viên
+    participant FE as Front-end (Nhận xét & báo cáo)
+    participant API as API /reports
+    participant JOB as Luồng nền (report_jobs)
+    participant F as reports.facts (Analytics)
+    participant LLM as Dịch vụ LLM
+    participant CK as reports.checks
+    participant DB as PostgreSQL
+    GV->>FE: Chọn lớp, loại, kỳ, bấm "Sinh cả lớp"
+    FE->>API: POST /reports (không có student_id)
+    API->>API: authorize_report
+    API->>DB: Tạo report_jobs
+    API-->>FE: 202 + job_id
+    API->>JOB: Chạy nền
+    loop Mỗi nhóm tối đa 5 học sinh
+        JOB->>JOB: Kiểm lại quyền
+        JOB->>F: Số liệu từng em
+        F-->>JOB: JSON không có họ tên, mã HS, ngày sinh, phụ huynh
+        JOB->>LLM: Lời nhắc + dữ liệu đã ẩn danh (LLM không gọi hàm)
+        LLM-->>JOB: Điểm mạnh, điều cần cố gắng, gợi ý
+        JOB->>CK: Kiểm số liệu và từ cấm
+        opt Không đạt
+            JOB->>LLM: Viết lại riêng em đó (tối đa 2 lần)
+        end
+        JOB->>DB: Lưu bản nháp (draft) hoặc đánh dấu "cần tự viết"
+    end
+    loop Mỗi 2,5 giây khi job đang chạy
+        FE->>API: GET /reports/jobs/{id}
+        API-->>FE: Tiến độ
+    end
+    GV->>FE: Sửa văn bản, bấm "Duyệt"
+    FE->>API: PUT /reports/{id} (text, approve)
+    API->>DB: status = approved, approved_by, audit approve_report
+    GV->>FE: Bấm "Xuất PDF"
+    FE->>API: GET /reports/{id}/export?format=pdf
+    API-->>FE: Tệp PDF (họ tên thật lấy từ DB)

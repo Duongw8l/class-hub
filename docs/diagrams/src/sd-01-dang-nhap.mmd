@@ -1,0 +1,32 @@
+sequenceDiagram
+    autonumber
+    actor U as Người dùng
+    participant FE as Front-end (React)
+    participant API as API /auth
+    participant AUTH as auth.service
+    participant DB as PostgreSQL
+    U->>FE: Nhập email, mật khẩu
+    FE->>API: POST /auth/login
+    API->>AUTH: authenticate(email, mật khẩu)
+    AUTH->>DB: Tìm tài khoản theo email (không phân biệt hoa thường)
+    DB-->>AUTH: Tài khoản hoặc không có
+    AUTH->>AUTH: So mật khẩu (bcrypt), kiểm is_active
+    alt Sai email, sai mật khẩu hoặc tài khoản bị khoá
+        API-->>FE: 401 "Email hoặc mật khẩu không đúng."
+        FE-->>U: Báo lỗi
+    else Hợp lệ
+        API-->>FE: 200 access_token (JWT) + thông tin người dùng
+        FE->>API: GET /auth/me
+        API-->>FE: must_change_password
+        opt must_change_password = true (mật khẩu tạm)
+            FE-->>U: Màn hình "Đặt mật khẩu của riêng bạn"
+            Note over FE,API: Mọi API khác trả 403 tới khi đổi xong
+            U->>FE: Mật khẩu tạm, mật khẩu mới
+            FE->>API: POST /auth/change-password
+            API->>DB: Lưu bản băm mới, tắt cờ, ghi audit_logs
+            API-->>FE: 200 "Đã đổi mật khẩu."
+        end
+        FE->>API: GET /me/assignments?school_year_id=
+        API-->>FE: Lớp chủ nhiệm, các lớp–môn được phân công
+        FE-->>U: Trang chủ theo vai trò
+    end

@@ -1,0 +1,33 @@
+sequenceDiagram
+    autonumber
+    actor GV as GV bộ môn
+    participant FE as Front-end
+    participant API as API nhập tệp
+    participant AZ as authorize_write
+    participant IMP as imports.service
+    participant DB as PostgreSQL
+    participant WARN as warning.service
+    GV->>FE: Chọn môn, học kỳ, kéo thả tệp
+    FE->>API: POST /classes/{id}/import/assessments
+    API->>AZ: Kiểm phân công lớp–môn (trước khi đọc tệp)
+    alt Không có phân công
+        AZ-->>API: AuthorizationError
+        API-->>FE: 403
+    else Có quyền
+        API->>IMP: create_preview
+        IMP->>IMP: Đọc xlsx/csv, dò dòng tiêu đề, ánh xạ cột
+        IMP->>DB: Học sinh của lớp, điểm hiện có
+        IMP->>IMP: Kiểm từng dòng (0–10, 1 chữ số thập phân, mã HS, đủ đầu điểm)
+        IMP->>DB: Lưu import_jobs (hết hạn sau 24 giờ)
+        API-->>FE: Bản xem trước: Mới / Đổi / Giữ nguyên / Lỗi
+        FE-->>GV: Bảng xem trước, dòng lỗi tô đỏ
+        opt Không có dòng lỗi
+            GV->>FE: Bấm "Xác nhận nhập"
+            FE->>API: POST /imports/{job_id}/confirm
+            API->>AZ: Kiểm lại quyền và người tạo
+            API->>DB: Một transaction: upsert assessments, audit import_confirm
+            API-->>FE: Số bản ghi tạo mới / ghi đè
+            API->>WARN: on_data_changed(class_id), sau khi commit
+            WARN->>DB: Tính lại cảnh báo sớm của lớp (luật + ML)
+        end
+    end
