@@ -190,6 +190,10 @@
   .btn-secondary {
     @apply btn border border-slate-300 bg-surface text-slate-700 hover:bg-slate-100;
   }
+  /* Thao tác có hậu quả (khoá tài khoản…). */
+  .btn-danger {
+    @apply btn bg-red-600 text-white shadow-sm hover:bg-red-700;
+  }
   .btn-ghost {
     @apply btn text-slate-600 hover:bg-slate-100;
   }

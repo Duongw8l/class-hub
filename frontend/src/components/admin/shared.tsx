@@ -48,15 +48,15 @@ export function AdminGate({ children }: { children: (admin: AuthUser) => ReactNo
 }
 
 interface TempPasswordNoticeProps {
-  title: string
   email: string
   password: string
   onDone: () => void
 }
 
-// Mật khẩu tạm chỉ hiện một lần: back-end không lưu bản rõ và không có cách xem lại. Admin sao chép,
-// đưa cho người dùng, rồi bấm "Đã ghi lại" để đóng; muốn có mật khẩu khác phải đặt lại.
-export function TempPasswordNotice({ title, email, password, onDone }: TempPasswordNoticeProps) {
+// Nội dung hộp thoại mật khẩu tạm (tiêu đề do Modal hiện). Mật khẩu chỉ hiện một lần: back-end không
+// lưu bản rõ và không có cách xem lại. Admin sao chép, đưa cho người dùng, rồi bấm "Đã ghi lại" để
+// đóng; muốn có mật khẩu khác phải đặt lại.
+export function TempPasswordNotice({ email, password, onDone }: TempPasswordNoticeProps) {
   const [copied, setCopied] = useState<'yes' | 'no' | null>(null)
 
   async function copy() {
@@ -69,18 +69,14 @@ export function TempPasswordNotice({ title, email, password, onDone }: TempPassw
   }
 
   return (
-    <section
-      aria-labelledby="mat-khau-tam"
-      className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-900"
-    >
-      <h2 id="mat-khau-tam" className="flex items-center gap-2 text-base font-semibold">
-        <Icon name="alert" className="h-5 w-5" />
-        {title}
-      </h2>
-      <p className="text-sm">
+    <div className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-900">
+      <p className="flex items-start gap-2 text-sm">
+        <Icon name="alert" className="mt-0.5 h-5 w-5 shrink-0" />
+        <span>
         Tài khoản <strong>{email}</strong>. Mật khẩu này <strong>chỉ hiện một lần</strong>, hệ thống
         không lưu bản đọc được. Hãy đưa cho người dùng và nhắc họ đổi mật khẩu ngay ở menu người
         dùng (góc trên bên phải) › Đổi mật khẩu.
+        </span>
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <code
@@ -100,6 +96,6 @@ export function TempPasswordNotice({ title, email, password, onDone }: TempPassw
         {copied === 'yes' && 'Đã sao chép vào bộ nhớ tạm.'}
         {copied === 'no' && 'Không sao chép được tự động. Hãy bôi đen mật khẩu rồi chép tay.'}
       </p>
-    </section>
+    </div>
   )
 }
