@@ -14,11 +14,12 @@ import { useAdminUsers } from '../hooks/useAdmin'
 // Quản lý tài khoản (Admin): tạo, sửa, đặt lại mật khẩu, khoá / mở khoá. Tài khoản không bị xoá vì
 // điểm và nhật ký còn tham chiếu tới người dùng (D-096). Mật khẩu tạm chỉ hiện một lần (D-097).
 // Sửa, đặt lại mật khẩu, khoá, mở khoá và mật khẩu tạm đều hiện trong hộp thoại; tài khoản bị khoá
-// nằm ở danh sách riêng.
+// nằm ở danh sách riêng, mở bằng nút "Đã khoá" cạnh ô lọc Vai trò. Thêm tài khoản và nhập từ tệp đặt trên đầu để không phải cuộn qua danh sách.
 export default function AdminUsersPage() {
   const users = useAdminUsers()
   const [dialog, setDialog] = useState<{ action: UserAction; user: AdminUser } | null>(null)
   const [created, setCreated] = useState<CreatedUser | null>(null)
+  const [showLocked, setShowLocked] = useState(false)
 
   return (
     <AdminGate>
@@ -28,39 +29,6 @@ export default function AdminUsersPage() {
             title="Tài khoản"
             subtitle="Giáo viên, Ban giám hiệu và quản trị viên. Giáo viên chủ nhiệm và giáo viên bộ môn được xác định theo phân công, không phải theo loại tài khoản."
           />
-          <QueryState query={users}>
-            {(data) => {
-              const active = data.filter((user) => user.is_active)
-              const locked = data.filter((user) => !user.is_active)
-              const open = (action: UserAction, user: AdminUser) => setDialog({ action, user })
-              return (
-                <>
-                  <Panel id="dang-hoat-dong" title={`Đang hoạt động (${active.length})`}>
-                    <UserTable
-                      users={active}
-                      selfId={admin.id}
-                      variant="active"
-                      onAction={open}
-                      idPrefix="hoat-dong"
-                    />
-                  </Panel>
-                  <Panel
-                    id="da-khoa"
-                    title={`Đã khoá (${locked.length})`}
-                    description="Tài khoản bị khoá không đăng nhập được. Mở khoá để dùng lại; tài khoản không bị xoá vì điểm và nhật ký còn tham chiếu tới họ."
-                  >
-                    <UserTable
-                      users={locked}
-                      selfId={admin.id}
-                      variant="locked"
-                      onAction={open}
-                      idPrefix="da-khoa"
-                    />
-                  </Panel>
-                </>
-              )
-            }}
-          </QueryState>
           <Panel
             id="them-tai-khoan"
             title="Thêm tài khoản"
@@ -75,6 +43,56 @@ export default function AdminUsersPage() {
           >
             <UserImportWizard />
           </Panel>
+          <QueryState query={users}>
+            {(data) => {
+              const active = data.filter((user) => user.is_active)
+              const locked = data.filter((user) => !user.is_active)
+              const open = (action: UserAction, user: AdminUser) => setDialog({ action, user })
+              // Một khung, nút cạnh ô Vai trò chuyển qua lại giữa hai danh sách: không phải cuộn
+              // hết danh sách đang hoạt động mới tới tài khoản đã khoá.
+              const toggle = (
+                <button
+                  type="button"
+                  onClick={() => setShowLocked((current) => !current)}
+                  aria-pressed={showLocked}
+                  className={showLocked ? 'btn-secondary' : 'btn-secondary text-red-700'}
+                >
+                  {showLocked
+                    ? `← Đang hoạt động (${active.length})`
+                    : `Đã khoá (${locked.length})`}
+                </button>
+              )
+              return showLocked ? (
+                <Panel
+                  id="da-khoa"
+                  title={`Đã khoá (${locked.length})`}
+                  description="Tài khoản bị khoá không đăng nhập được. Mở khoá để dùng lại; tài khoản không bị xoá vì điểm và nhật ký còn tham chiếu tới họ."
+                >
+                  <UserTable
+                    key="locked"
+                    users={locked}
+                    selfId={admin.id}
+                    variant="locked"
+                    onAction={open}
+                    idPrefix="da-khoa"
+                    extraControl={toggle}
+                  />
+                </Panel>
+              ) : (
+                <Panel id="dang-hoat-dong" title={`Đang hoạt động (${active.length})`}>
+                  <UserTable
+                    key="active"
+                    users={active}
+                    selfId={admin.id}
+                    variant="active"
+                    onAction={open}
+                    idPrefix="hoat-dong"
+                    extraControl={toggle}
+                  />
+                </Panel>
+              )
+            }}
+          </QueryState>
 
           {dialog && (
             <UserActionDialog

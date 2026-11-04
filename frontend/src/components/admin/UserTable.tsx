@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { AdminUser } from '../../api/admin'
 import type { UserRole } from '../../api/auth'
 import { ROLE_OPTIONS, roleText } from './roles'
@@ -12,6 +13,8 @@ interface UserTableProps {
   onAction: (action: UserAction, user: AdminUser) => void
   // Tiền tố id cho ô lọc, để hai bảng trên cùng trang không trùng id.
   idPrefix: string
+  // Nút đặt cạnh ô lọc Vai trò (ví dụ chuyển sang danh sách đã khoá).
+  extraControl?: ReactNode
 }
 
 function dutiesText(user: AdminUser): string {
@@ -24,7 +27,14 @@ function dutiesText(user: AdminUser): string {
 
 // Danh sách tài khoản với bộ lọc. Mọi thao tác (sửa, đặt lại mật khẩu, khoá, mở khoá) mở hộp thoại
 // riêng ở trang cha; bảng không tự gọi API.
-export function UserTable({ users, selfId, variant, onAction, idPrefix }: UserTableProps) {
+export function UserTable({
+  users,
+  selfId,
+  variant,
+  onAction,
+  idPrefix,
+  extraControl,
+}: UserTableProps) {
   const [text, setText] = useState('')
   const [role, setRole] = useState<UserRole | ''>('')
 
@@ -43,18 +53,21 @@ export function UserTable({ users, selfId, variant, onAction, idPrefix }: UserTa
 
   if (users.length === 0) {
     return (
-      <p className="text-sm text-slate-600">
-        {variant === 'locked'
-          ? 'Chưa có tài khoản nào bị khoá.'
-          : 'Chưa có tài khoản nào đang hoạt động.'}
-      </p>
+      <div className="space-y-4">
+        {extraControl}
+        <p className="text-sm text-slate-600">
+          {variant === 'locked'
+            ? 'Chưa có tài khoản nào bị khoá.'
+            : 'Chưa có tài khoản nào đang hoạt động.'}
+        </p>
+      </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:max-w-3xl">
-        <div>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-full sm:w-80">
           <label htmlFor={`${idPrefix}-loc-ten`} className="label">
             Tìm theo tên, email, môn hoặc ghi chú
           </label>
@@ -66,7 +79,7 @@ export function UserTable({ users, selfId, variant, onAction, idPrefix }: UserTa
             className="input mt-1"
           />
         </div>
-        <div>
+        <div className="w-full sm:w-80">
           <label htmlFor={`${idPrefix}-loc-vai-tro`} className="label">
             Vai trò
           </label>
@@ -84,6 +97,7 @@ export function UserTable({ users, selfId, variant, onAction, idPrefix }: UserTa
             ))}
           </select>
         </div>
+        {extraControl}
       </div>
 
       <p aria-live="polite" className="text-sm text-slate-500">
