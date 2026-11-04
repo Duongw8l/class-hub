@@ -23,6 +23,7 @@ from app.core.enums import (
     ReportStatus,
     ReportType,
     RiskLevel,
+    ScoreChangeReason,
     TeacherStatus,
     UserRole,
 )
@@ -121,6 +122,13 @@ LABELS_VI: dict[type[StrEnum], dict[StrEnum, str]] = {
         AuditAction.APPROVE_REPORT: "Duyệt nhận xét hoặc báo cáo",
         AuditAction.EXPORT_REPORT: "Xuất PDF nhận xét hoặc báo cáo",
         AuditAction.VIEW_CLASS_REPORTS: "Xem danh sách nhận xét của lớp",
+        AuditAction.EDIT_SCORES: "Sửa hoặc nhập tay điểm",
+    },
+    ScoreChangeReason: {
+        ScoreChangeReason.RETEST: "Kiểm tra lại",
+        ScoreChangeReason.MAKEUP: "Kiểm tra bù",
+        ScoreChangeReason.CORRECTION: "Nhập sai",
+        ScoreChangeReason.OTHER: "Khác",
     },
     ImportKind: {
         ImportKind.ASSESSMENTS: "Điểm",

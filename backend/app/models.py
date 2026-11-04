@@ -16,7 +16,7 @@ from app.classes.models import (
 )
 from app.core.base import Base
 from app.core.models import Setting
-from app.imports.models import ImportJob, ImportMapping
+from app.imports.models import AssessmentChange, ImportJob, ImportMapping
 from app.rag.models import RegulationChunk
 from app.reports.models import Report, ReportJob
 from app.warning.models import RiskAlert
@@ -24,6 +24,7 @@ from app.warning.models import RiskAlert
 __all__ = [
     "AiLog",
     "Assessment",
+    "AssessmentChange",
     "Attendance",
     "AuditLog",
     "Base",

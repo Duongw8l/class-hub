@@ -133,6 +133,16 @@ class AuditAction(StrEnum):
     APPROVE_REPORT = "approve_report"
     EXPORT_REPORT = "export_report"  # xuất PDF bản đã duyệt
     VIEW_CLASS_REPORTS = "view_class_reports"  # danh sách bản nháp kèm học sinh của lớp
+    EDIT_SCORES = "edit_scores"  # GVBM sửa / nhập tay điểm của một học sinh (D-115)
+
+
+class ScoreChangeReason(StrEnum):
+    """Lý do sửa điểm bằng tay (D-115). Nhãn tiếng Việt ở app/core/labels.py."""
+
+    RETEST = "retest"  # kiểm tra lại để nâng điểm
+    MAKEUP = "makeup"  # kiểm tra bù đầu điểm còn thiếu
+    CORRECTION = "correction"  # nhập sai
+    OTHER = "other"  # khác (bắt buộc ghi chú)
 
 
 class ImportKind(StrEnum):

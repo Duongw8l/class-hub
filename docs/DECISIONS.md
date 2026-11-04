@@ -668,3 +668,13 @@ Các mục D-076 đến D-084 được ghi bổ sung sau khi mã đã viết xon
 - **Chặn ở back-end, không chỉ giao diện:** `CurrentUser` trả **403** "Bạn đang dùng mật khẩu tạm…" khi cờ bật, áp cho mọi endpoint kể cả `/admin/*` (Admin được đặt lại mật khẩu của chính mình cũng phải đổi). Chỉ `GET /auth/me` (mới, trả `UserOut`) và `POST /auth/change-password` dùng `AuthenticatedUser` (không xét cờ). Token cũ dùng tiếp được ngay sau khi đổi.
 - **`UserOut`** (phản hồi đăng nhập, `/auth/me`, `user` trong `/me/assignments`) thêm `must_change_password`.
 - **Giao diện:** `RequireAuth` đọc `/auth/me`; cờ bật thì chỉ hiện màn hình "Đặt mật khẩu của riêng bạn" (ô Mật khẩu tạm, Mật khẩu mới, Nhập lại; nút Đăng xuất), đổi xong vào thẳng ứng dụng. Biểu mẫu dùng chung với trang Đổi mật khẩu (`ChangePasswordForm`). Quy tắc mật khẩu giữ như D-097 (tối thiểu 8 ký tự, khác mật khẩu cũ).
+
+## Sửa và nhập tay điểm
+
+**D-115 · Giáo viên bộ môn sửa / nhập tay điểm từng học sinh, bắt chọn lý do, giữ lịch sử** (Khi làm, theo yêu cầu của bạn)
+- **Vì sao:** trước đây chỉ nhập điểm bằng tệp; đổi điểm vài em (kiểm tra lại để nâng điểm, kiểm tra bù, nhập sai) phải tải lại cả tệp.
+- **Giao diện (quyết định của bạn):** trang Bảng điểm của lớp–môn, mỗi dòng có nút **Sửa** (GVBM được phân công) hoặc **Lịch sử** (GVCN, BGH: chỉ xem). Popup hiện các đầu điểm của học kỳ đang xem (TX1…n, Giữa kỳ, Cuối kỳ; môn nhận xét: Đạt / Chưa đạt), ô đổi viền vàng, chọn lý do, ghi chú; dưới là lịch sử sửa điểm môn đó cả năm.
+- **Điểm mới thay hẳn điểm cũ (quyết định của bạn):** ghi đè đầu điểm; ĐTB do Analytics tính khi đọc nên tự đổi; công thức không đổi. Ô "thiếu" nhập được (kiểm tra bù). Không xoá được một điểm đã có.
+- **Lý do bắt buộc (quyết định của bạn):** `retest` Kiểm tra lại, `makeup` Kiểm tra bù, `correction` Nhập sai, `other` Khác (bắt buộc ghi chú).
+- **Lịch sử:** bảng mới `assessment_changes` (migration thứ 17, `a8c3e5f1d9b7`): mỗi đầu điểm đổi giá trị một dòng (cũ → mới, cũ NULL khi trước đó thiếu), lý do, ghi chú, người sửa, thời điểm; chỉ thêm, xoá theo lượt xếp lớp (CASCADE). Ghi cùng transaction với điểm và nhật ký `edit_scores`. Nhập từ tệp không ghi vào bảng này.
+- **API:** `GET /classes/{class_id}/subjects/{subject_id}/students/{student_id}/scores?semester=` qua `authorize()` (ghi nhật ký `view_subject_scores` kèm `student_id`), trả các đầu điểm, `tx_slots`, `can_edit`, lịch sử. `PUT` cùng đường dẫn qua `authorize_write()` (chỉ GVBM được phân công, như nhập tệp); chỉ ghi ô đổi giá trị, không đổi gì → 400; giá trị: 0–10, tối đa 1 chữ số thập phân, TX trong số đầu điểm của môn, môn nhận xét chỉ Đạt / Chưa đạt → 422. Lưu xong chạy lại cảnh báo sớm của lớp (`on_data_changed`).

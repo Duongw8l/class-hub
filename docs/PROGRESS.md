@@ -629,3 +629,21 @@ Làm theo yêu cầu "BGH, GVCN, giáo viên nhập điểm xem lại được c
 | `pytest` toàn bộ back-end (1563 qua, 1 bỏ qua cần mô hình thật) | Đã chạy, qua |
 | `ruff check` + `ruff format`, `tsc -b`, `eslint` | Đã chạy, qua |
 | **Trình duyệt thật**: đăng nhập bằng mật khẩu tạm → đặt mật khẩu mới → vào ứng dụng | **Chưa kiểm** |
+
+## Sửa / nhập tay điểm (D-115)
+
+- Trang Bảng điểm: nút **Sửa** mỗi dòng (GVBM được phân công) mở popup sửa từng đầu điểm, bắt chọn lý do, kèm lịch sử; GVCN, BGH có nút **Lịch sử** (chỉ xem).
+- Mới: migration 17 (`a8c3e5f1d9b7`, bảng `assessment_changes`, hành động `edit_scores`), `app/imports/manual.py`, `manual_router.py`, `manual_schemas.py`; `frontend/src/api/scores.ts`, `components/scores/StudentScoresDialog.tsx`; test `tests/imports/test_manual_scores.py`.
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 17) trên DB dev | Đã chạy |
+| `pytest` toàn bộ back-end (1590 qua, 1 bỏ qua cần mô hình thật) | Đã chạy, qua |
+| `ruff check` + `ruff format`, `tsc -b`, `eslint` | Đã chạy, qua |
+| **Trình duyệt thật**: sửa điểm, nhập bù, xem lịch sử | **Chưa kiểm** |
+
+## Lọc học sinh theo khoảng điểm (trang Bảng điểm)
+
+- Hàng nút lọc trên bảng điểm: Tất cả, Dưới 3,5, 3,5 đến dưới 5,0, 5,0 đến dưới 6,5, 6,5 đến dưới 8,0, Từ 8,0, Còn thiếu đầu điểm (môn nhận xét: Đạt, Chưa đạt, Còn thiếu); mỗi nút kèm số học sinh. Chọn xét theo ĐTB học kỳ đang xem hoặc ĐTB cả năm.
+- Ngưỡng lấy từ `thresholds` do API trả (bảng `settings`), cùng cách chia với biểu đồ phân bố; chỉ lọc hiển thị, ĐTB vẫn do server tính. Chỉ đổi front-end (`SubjectScoresPage.tsx`), không có API mới.
+- `tsc -b`, `eslint`: qua. Trình duyệt thật: **chưa kiểm**.

@@ -5,6 +5,7 @@ import { DistributionChart } from '../components/charts/DistributionChart'
 import { PageTitle, Panel } from '../components/Panel'
 import { PeriodSelect } from '../components/PeriodSelect'
 import { QueryState } from '../components/QueryState'
+import { StudentScoresDialog } from '../components/scores/StudentScoresDialog'
 import { StatCard, StatGrid } from '../components/StatCard'
 import { useAssignments } from '../hooks/useAssignments'
 import { useSubjectScores, usePeriod } from '../hooks/useAnalytics'
@@ -51,11 +52,48 @@ function AverageCell({
   )
 }
 
+interface RowActions {
+  canEdit: boolean
+  onOpen: (row: ScoreRow) => void
+}
+
+// Nút ở cuối mỗi dòng: GVBM được phân công thấy "Sửa"; GVCN, BGH thấy "Lịch sử" (chỉ xem).
+function ActionCell({ row, actions }: { row: ScoreRow; actions: RowActions }) {
+  return (
+    <td className="px-2 py-1">
+      <button
+        type="button"
+        onClick={() => actions.onOpen(row)}
+        aria-label={`${actions.canEdit ? 'Sửa điểm' : 'Lịch sử sửa điểm'} của ${row.full_name}`}
+        className="btn-secondary px-2.5 py-1 text-xs"
+      >
+        {actions.canEdit ? 'Sửa' : 'Lịch sử'}
+      </button>
+    </td>
+  )
+}
+
+function ActionHeader() {
+  return (
+    <th scope="col" className="px-2 py-2 font-medium">
+      <span className="sr-only">Thao tác</span>
+    </th>
+  )
+}
+
 function missingCount(row: ScoreRow): number {
   return row.tx_missing + (row.midterm === null ? 1 : 0) + (row.final === null ? 1 : 0)
 }
 
-function ScoreGrid({ scores, rows }: { scores: SubjectScores; rows: ScoreRow[] }) {
+function ScoreGrid({
+  scores,
+  rows,
+  actions,
+}: {
+  scores: SubjectScores
+  rows: ScoreRow[]
+  actions: RowActions
+}) {
   const classId = scores.class_info.id
   const txColumns = Math.max(scores.subject.regular_required, ...rows.map((row) => row.tx.length))
   const txIndexes = Array.from({ length: txColumns }, (_, index) => index)
@@ -99,6 +137,7 @@ function ScoreGrid({ scores, rows }: { scores: SubjectScores; rows: ScoreRow[] }
             <th scope="col" className="px-2 py-2 font-medium">
               Ghi chú
             </th>
+            <ActionHeader />
           </tr>
         </thead>
         <tbody>
@@ -132,6 +171,7 @@ function ScoreGrid({ scores, rows }: { scores: SubjectScores; rows: ScoreRow[] }
               <td className="px-2 py-1.5 text-xs text-red-800">
                 {!row.complete && `Thiếu ${missingCount(row)} đầu điểm`}
               </td>
+              <ActionCell row={row} actions={actions} />
             </tr>
           ))}
         </tbody>
@@ -140,7 +180,15 @@ function ScoreGrid({ scores, rows }: { scores: SubjectScores; rows: ScoreRow[] }
   )
 }
 
-function CommentGrid({ scores, rows }: { scores: SubjectScores; rows: ScoreRow[] }) {
+function CommentGrid({
+  scores,
+  rows,
+  actions,
+}: {
+  scores: SubjectScores
+  rows: ScoreRow[]
+  actions: RowActions
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="data-table min-w-max">
@@ -158,6 +206,7 @@ function CommentGrid({ scores, rows }: { scores: SubjectScores; rows: ScoreRow[]
             <th scope="col" className="px-2 py-2 font-medium">
               Nhận xét
             </th>
+            <ActionHeader />
           </tr>
         </thead>
         <tbody>
@@ -182,6 +231,7 @@ function CommentGrid({ scores, rows }: { scores: SubjectScores; rows: ScoreRow[]
                   <Missing />
                 )}
               </td>
+              <ActionCell row={row} actions={actions} />
             </tr>
           ))}
         </tbody>
@@ -218,10 +268,86 @@ function Distribution({ scores }: { scores: SubjectScores }) {
   )
 }
 
+type ScoreBand = 'below_fail' | 'fail_to_pass' | 'pass_to_fair' | 'fair_to_good' | 'at_least_good'
+type RowFilter = 'all' | 'missing' | ScoreBand | 'comment_pass' | 'comment_fail'
+type Basis = 'semester' | 'year'
+
+// Khoảng điểm của một ĐTB theo ngưỡng do back-end trả (đọc từ bảng settings, nguyên tắc 2), cùng
+// cách chia với biểu đồ phân bố. Chỉ để lọc hiển thị; ĐTB vẫn do server tính.
+function bandOf(value: number | null, t: SubjectScores['thresholds']): ScoreBand | null {
+  if (value === null) return null
+  if (value < t.fail) return 'below_fail'
+  if (value < t.passing) return 'fail_to_pass'
+  if (value < t.fair) return 'pass_to_fair'
+  if (value < t.good) return 'fair_to_good'
+  return 'at_least_good'
+}
+
+function matches(row: ScoreRow, filter: RowFilter, basis: Basis, scores: SubjectScores): boolean {
+  switch (filter) {
+    case 'all':
+      return true
+    case 'missing':
+      return !row.complete
+    case 'comment_pass':
+      return row.comment_result === 'pass'
+    case 'comment_fail':
+      return row.comment_result === 'fail'
+    default:
+      return (
+        bandOf(basis === 'year' ? row.year_average : row.average, scores.thresholds) === filter
+      )
+  }
+}
+
+function filterOptions(
+  scores: SubjectScores,
+  isScore: boolean,
+): { key: RowFilter; label: string }[] {
+  const t = scores.thresholds
+  const all = { key: 'all' as const, label: 'Tất cả' }
+  const missing = { key: 'missing' as const, label: 'Còn thiếu đầu điểm' }
+  if (!isScore) {
+    return [
+      all,
+      { key: 'comment_pass', label: 'Đạt' },
+      { key: 'comment_fail', label: 'Chưa đạt' },
+      missing,
+    ]
+  }
+  return [
+    all,
+    { key: 'below_fail', label: `Dưới ${formatScore(t.fail)}` },
+    { key: 'fail_to_pass', label: `${formatScore(t.fail)} đến dưới ${formatScore(t.passing)}` },
+    { key: 'pass_to_fair', label: `${formatScore(t.passing)} đến dưới ${formatScore(t.fair)}` },
+    { key: 'fair_to_good', label: `${formatScore(t.fair)} đến dưới ${formatScore(t.good)}` },
+    { key: 'at_least_good', label: `Từ ${formatScore(t.good)}` },
+    missing,
+  ]
+}
+
+const EMPTY_TEXT: Record<RowFilter, string> = {
+  all: 'Lớp chưa có học sinh.',
+  missing: 'Không có học sinh nào thiếu đầu điểm.',
+  below_fail: 'Không có học sinh nào trong khoảng điểm này.',
+  fail_to_pass: 'Không có học sinh nào trong khoảng điểm này.',
+  pass_to_fair: 'Không có học sinh nào trong khoảng điểm này.',
+  fair_to_good: 'Không có học sinh nào trong khoảng điểm này.',
+  at_least_good: 'Không có học sinh nào trong khoảng điểm này.',
+  comment_pass: 'Không có học sinh nào Đạt.',
+  comment_fail: 'Không có học sinh nào Chưa đạt.',
+}
+
 function ScoresContent({ scores, canImport }: { scores: SubjectScores; canImport: boolean }) {
-  const [onlyMissing, setOnlyMissing] = useState(false)
+  const [filter, setFilter] = useState<RowFilter>('all')
+  const [basis, setBasis] = useState<Basis>('semester')
+  const [open, setOpen] = useState<ScoreRow | null>(null)
+  const actions: RowActions = { canEdit: canImport, onOpen: setOpen }
   const isScore = scores.subject.assessment_type === 'score'
-  const rows = onlyMissing ? scores.rows.filter((row) => !row.complete) : scores.rows
+  const options = filterOptions(scores, isScore)
+  const count = (key: RowFilter) =>
+    scores.rows.filter((row) => matches(row, key, basis, scores)).length
+  const rows = scores.rows.filter((row) => matches(row, filter, basis, scores))
 
   return (
     <>
@@ -269,26 +395,86 @@ function ScoresContent({ scores, canImport }: { scores: SubjectScores; canImport
         title={isScore ? 'Bảng điểm' : 'Nhận xét'}
         description={
           isScore
-            ? 'ĐTB do hệ thống tính theo Thông tư 22. Dấu * là điểm tạm tính vì còn thiếu đầu điểm.'
-            : undefined
+            ? `ĐTB do hệ thống tính theo Thông tư 22. Dấu * là điểm tạm tính vì còn thiếu đầu điểm.${
+                canImport
+                  ? ' Bấm "Sửa" ở cuối dòng để sửa hoặc nhập tay điểm của một học sinh.'
+                  : ''
+              }`
+            : canImport
+              ? 'Bấm "Sửa" ở cuối dòng để đổi nhận xét của một học sinh.'
+              : undefined
         }
       >
-        <label className="mb-3 flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={onlyMissing}
-            onChange={(event) => setOnlyMissing(event.target.checked)}
-          />
-          Chỉ hiện học sinh còn thiếu đầu điểm
-        </label>
+        <div className="mb-4 space-y-3">
+          {isScore && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <label htmlFor="loc-theo-dtb" className="text-slate-600">
+                Lọc theo
+              </label>
+              <select
+                id="loc-theo-dtb"
+                value={basis}
+                onChange={(event) => setBasis(event.target.value as Basis)}
+                className="input w-auto py-1.5 text-sm"
+              >
+                <option value="semester">
+                  ĐTB học kỳ {scores.semester === 1 ? 'I' : 'II'}
+                </option>
+                <option value="year">ĐTB cả năm</option>
+              </select>
+            </div>
+          )}
+          <div role="group" aria-label="Lọc học sinh" className="flex flex-wrap gap-2">
+            {options.map((option) => {
+              const active = filter === option.key
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setFilter(option.key)}
+                  className={`rounded-full px-3 py-1.5 text-sm ring-1 transition ${
+                    active
+                      ? 'bg-brand-700 text-white ring-brand-700'
+                      : 'bg-surface text-slate-700 ring-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  {option.label}{' '}
+                  <span className={active ? 'text-white/80' : 'text-slate-500'}>
+                    ({count(option.key)})
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          {isScore && basis === 'year' && (
+            <p className="text-xs text-slate-500">
+              ĐTB cả năm chỉ có khi đủ điểm hai học kỳ; học sinh chưa có ĐTB cả năm không thuộc
+              khoảng điểm nào.
+            </p>
+          )}
+          <p aria-live="polite" className="text-sm text-slate-500">
+            Hiện {rows.length} / {scores.rows.length} học sinh.
+          </p>
+        </div>
         {rows.length === 0 ? (
-          <p className="text-sm text-slate-600">Không có học sinh nào thiếu đầu điểm.</p>
+          <p className="text-sm text-slate-600">{EMPTY_TEXT[filter]}</p>
         ) : isScore ? (
-          <ScoreGrid scores={scores} rows={rows} />
+          <ScoreGrid scores={scores} rows={rows} actions={actions} />
         ) : (
-          <CommentGrid scores={scores} rows={rows} />
+          <CommentGrid scores={scores} rows={rows} actions={actions} />
         )}
       </Panel>
+      {open && (
+        <StudentScoresDialog
+          classId={scores.class_info.id}
+          subjectId={scores.subject.id}
+          studentId={open.student_id}
+          studentName={open.full_name}
+          semester={scores.semester === 2 ? 2 : 1}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </>
   )
 }

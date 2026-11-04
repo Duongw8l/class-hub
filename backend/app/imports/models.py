@@ -6,6 +6,7 @@ các dòng hợp lệ (mã học sinh, điểm...): không lưu tệp gốc và 
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -13,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Numeric,
     SmallInteger,
     String,
     UniqueConstraint,
@@ -23,7 +25,14 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base import Base, IntPk, enum_type
-from app.core.enums import ConductPeriod, ImportKind, ImportStatus
+from app.core.enums import (
+    AssessmentKind,
+    CommentResult,
+    ConductPeriod,
+    ImportKind,
+    ImportStatus,
+    ScoreChangeReason,
+)
 
 
 class ImportJob(Base):
@@ -69,3 +78,38 @@ class ImportMapping(Base):
     mapping: Mapped[Any] = mapped_column(JSONB)
     header_row: Mapped[int | None] = mapped_column(SmallInteger)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AssessmentChange(Base):
+    """Lịch sử sửa / nhập tay một đầu điểm (D-115). Chỉ thêm, không sửa.
+
+    Mỗi dòng là một đầu điểm đổi giá trị: cũ (NULL khi trước đó còn thiếu) → mới, kèm lý do và
+    người sửa. Nhập từ tệp không ghi vào đây (đã có import_jobs và nhật ký import_confirm).
+    """
+
+    __tablename__ = "assessment_changes"
+    __table_args__ = (
+        CheckConstraint("semester IN (1, 2)", name="semester"),
+        Index("ix_assessment_changes_cs_subject", "class_student_id", "subject_id"),
+    )
+
+    id: Mapped[IntPk]
+    class_student_id: Mapped[int] = mapped_column(
+        ForeignKey("class_students.id", ondelete="CASCADE")
+    )
+    subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id"))
+    semester: Mapped[int] = mapped_column(SmallInteger)
+    kind: Mapped[AssessmentKind] = mapped_column(enum_type(AssessmentKind, "kind"))
+    seq: Mapped[int] = mapped_column(SmallInteger)
+    old_score: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    new_score: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    old_comment_result: Mapped[CommentResult | None] = mapped_column(
+        enum_type(CommentResult, "old_comment_result")
+    )
+    new_comment_result: Mapped[CommentResult | None] = mapped_column(
+        enum_type(CommentResult, "new_comment_result")
+    )
+    reason: Mapped[ScoreChangeReason] = mapped_column(enum_type(ScoreChangeReason, "reason"))
+    note: Mapped[str | None] = mapped_column(String(255))
+    changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -39,6 +39,7 @@ EXTRA_TABLES = {
     "regulation_documents",
     "report_jobs",
     "user_import_jobs",
+    "assessment_changes",
 }
 EXPECTED_SETTING_KEYS = {
     "coef_midterm",
