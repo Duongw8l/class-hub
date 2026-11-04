@@ -18,7 +18,7 @@ from app.auth.admin_schemas import (
 )
 from app.auth.audit import record_access
 from app.auth.models import User
-from app.classes.models import SchoolClass, Subject, TeachingAssignment
+from app.classes.models import SchoolClass, SchoolYear, Subject, TeachingAssignment
 from app.core.enums import AuditAction, UserRole
 from app.core.labels import label_vi
 from app.core.security import generate_temporary_password, hash_password, verify_password
@@ -56,10 +56,16 @@ class PasswordUnchanged(Exception):
     """Mật khẩu mới trùng mật khẩu hiện tại."""
 
 
+def _in_current_year() -> ColumnElement[bool]:
+    """Lớp thuộc năm hiện hành (D-113): công việc của giáo viên tính theo năm đang dạy."""
+    current = select(SchoolYear.id).where(SchoolYear.is_current.is_(True)).scalar_subquery()
+    return SchoolClass.school_year_id == current
+
+
 def _homeroom_name(user_id: ColumnElement[int]) -> ScalarSelect[str]:
     return (
         select(SchoolClass.name)
-        .where(SchoolClass.homeroom_teacher_id == user_id)
+        .where(SchoolClass.homeroom_teacher_id == user_id, _in_current_year())
         .order_by(SchoolClass.name)
         .limit(1)
         .scalar_subquery()
@@ -70,7 +76,8 @@ def _assignment_count(user_id: ColumnElement[int]) -> ScalarSelect[int]:
     return (
         select(func.count())
         .select_from(TeachingAssignment)
-        .where(TeachingAssignment.teacher_id == user_id)
+        .join(SchoolClass, SchoolClass.id == TeachingAssignment.class_id)
+        .where(TeachingAssignment.teacher_id == user_id, _in_current_year())
         .scalar_subquery()
     )
 
@@ -179,11 +186,17 @@ def create_user(session: Session, admin: User, data: UserCreateIn) -> CreatedUse
 
 
 def _has_teaching_duties(session: Session, user_id: int) -> bool:
+    """Đang chủ nhiệm hoặc dạy trong năm hiện hành. Phân công các năm cũ không chặn đổi vai trò."""
     homeroom = session.scalar(
-        select(SchoolClass.id).where(SchoolClass.homeroom_teacher_id == user_id).limit(1)
+        select(SchoolClass.id)
+        .where(SchoolClass.homeroom_teacher_id == user_id, _in_current_year())
+        .limit(1)
     )
     assigned = session.scalar(
-        select(TeachingAssignment.id).where(TeachingAssignment.teacher_id == user_id).limit(1)
+        select(TeachingAssignment.id)
+        .join(SchoolClass, SchoolClass.id == TeachingAssignment.class_id)
+        .where(TeachingAssignment.teacher_id == user_id, _in_current_year())
+        .limit(1)
     )
     return homeroom is not None or assigned is not None
 

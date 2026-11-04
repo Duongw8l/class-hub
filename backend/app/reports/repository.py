@@ -29,6 +29,8 @@ class ReportKey:
     semester: str
     subject_id: int | None
     class_id: int | None
+    # Năm học (D-113): năm của lớp, hoặc năm được chọn với báo cáo khối.
+    school_year_id: int
 
 
 def key_of(report: Report) -> ReportKey:
@@ -39,11 +41,13 @@ def key_of(report: Report) -> ReportKey:
         report.semester,
         report.subject_id,
         report.class_id,
+        report.school_year_id,
     )
 
 
 def _match(key: ReportKey) -> list[ColumnElement[bool]]:
     return [
+        Report.school_year_id == key.school_year_id,
         Report.type == key.type,
         Report.scope == key.scope,
         Report.target_id == key.target_id,
@@ -65,11 +69,13 @@ def reports_for_students(
     semester: str,
     subject_id: int | None,
     student_ids: Iterable[int],
+    school_year_id: int,
 ) -> dict[int, Report]:
-    """Bản của từng học sinh (theo id học sinh) cho một loại, kỳ và môn."""
+    """Bản của từng học sinh (theo id học sinh) cho một loại, kỳ, môn và năm học."""
     subject = Report.subject_id.is_(None) if subject_id is None else Report.subject_id == subject_id
     rows = session.scalars(
         select(Report).where(
+            Report.school_year_id == school_year_id,
             Report.type == report_type,
             Report.scope == ReportScope.STUDENT,
             Report.semester == semester,
@@ -102,6 +108,7 @@ def store_outcome(
     existing = find_report(session, key)
     if existing is None:
         report = Report(
+            school_year_id=key.school_year_id,
             scope=key.scope,
             target_id=key.target_id,
             type=key.type,

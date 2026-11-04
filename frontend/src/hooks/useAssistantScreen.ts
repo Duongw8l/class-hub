@@ -1,6 +1,7 @@
 import { matchPath, useLocation, useSearchParams } from 'react-router-dom'
 import type { AssistantScreen } from '../api/assistant'
 import type { Period } from '../api/analytics'
+import { useSelectedYear } from '../years/context'
 
 // Các màn hình có lớp (và môn) đang mở. Khung chat nằm trong AppLayout, ngoài các route con, nên
 // không dùng được useParams: so khớp đường dẫn hiện tại.
@@ -21,6 +22,7 @@ function toId(raw: string | undefined): number | null {
 // Lớp, môn và kỳ của màn hình đang mở (DESIGN mục 8: trợ lý tự biết người dùng đang xem gì).
 export function useAssistantScreen(): AssistantScreen {
   const { pathname } = useLocation()
+  const { yearId } = useSelectedYear()
   const [params] = useSearchParams()
 
   let classId: number | null = null
@@ -36,5 +38,5 @@ export function useAssistantScreen(): AssistantScreen {
   }
   const raw = params.get('semester')
   const semester = PERIODS.find((item) => item === raw) ?? '1'
-  return { classId, subjectId, semester }
+  return { classId, subjectId, semester, schoolYearId: yearId }
 }

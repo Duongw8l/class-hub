@@ -271,10 +271,13 @@ def subject_id_of(db_session: Session) -> Callable[[str], int]:
 
 @pytest.fixture
 def class_id_of(db_session: Session) -> Callable[[str], int]:
-    """Id của lớp theo tên (ví dụ "10A2") trong dữ liệu seed."""
+    """Id của lớp theo tên (ví dụ "10A2") trong dữ liệu seed. Nhiều năm học có thể cùng tên lớp
+    (D-113): lấy lớp tạo sớm nhất, tức lớp của năm học seed."""
 
     def find(name: str) -> int:
-        class_id = db_session.scalar(select(SchoolClass.id).where(SchoolClass.name == name))
+        class_id = db_session.scalar(
+            select(SchoolClass.id).where(SchoolClass.name == name).order_by(SchoolClass.id).limit(1)
+        )
         assert class_id is not None, f"Không có lớp seed {name}"
         return class_id
 

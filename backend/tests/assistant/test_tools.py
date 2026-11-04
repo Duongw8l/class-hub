@@ -21,6 +21,7 @@ from app.assistant.tools import (
     run_tool,
     tool_specs,
 )
+from app.classes.years import current_year
 from app.core.pseudonymize import FORBIDDEN_KEYS
 
 pytestmark = pytest.mark.db
@@ -491,8 +492,14 @@ def test_grade_overview_for_principal_matches_the_service(
 
     outcome = run(ctx, "get_grade_overview", grade_level=11, semester="1")
 
+    year = current_year(db_session)
+    assert year is not None
     expected = service.build_grade_overview(
-        db_session, 11, repo.classes_in_grade(db_session, 11), "1", ctx.config
+        db_session,
+        11,
+        repo.classes_in_grade(db_session, 11, school_year_id=year.id),
+        "1",
+        ctx.config,
     )
     result = outcome.result
     assert outcome.ok and result["grade_level"] == 11

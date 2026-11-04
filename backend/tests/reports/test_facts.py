@@ -11,6 +11,7 @@ from app.analytics import repository as repo
 from app.analytics import service as analytics
 from app.analytics.config import AnalyticsConfig, load_config
 from app.analytics.schemas import Period
+from app.classes.years import current_year
 from app.core.enums import ReportType
 from app.reports import facts
 from app.reports.facts import _best_subjects, _subject_summary
@@ -313,9 +314,11 @@ def test_class_facts_for_the_whole_year_add_promotion_counts(
 def test_grade_facts_compare_the_classes_of_the_grade(
     db_session: Session, config: AnalyticsConfig
 ) -> None:
-    result = facts.grade_facts(db_session, 11, "1", config)
+    year = current_year(db_session)
+    assert year is not None
+    result = facts.grade_facts(db_session, 11, "1", config, school_year_id=year.id)
     overview = analytics.build_grade_overview(
-        db_session, 11, repo.classes_in_grade(db_session, 11), "1", config
+        db_session, 11, repo.classes_in_grade(db_session, 11, school_year_id=year.id), "1", config
     )
     assert result["grade"] == 11
     assert [c["class"] for c in result["classes"]] == [c.name for c in overview.classes]

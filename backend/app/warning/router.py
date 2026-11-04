@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from app.analytics import repository as analytics_repo
 from app.auth.audit import record_access
 from app.auth.deps import CurrentUser
+from app.classes.years import SchoolYearQuery, resolve_year
 from app.core.authorize import AuthorizationError, authorize, authorize_school, authorize_write
 from app.core.db import DbSession
 from app.core.enums import AuditAction, RiskLevel
@@ -60,15 +61,21 @@ def school_alerts(
     user: CurrentUser,
     session: DbSession,
     level: Annotated[RiskLevel, Query(description="Mức cảnh báo cần xem")] = RiskLevel.HIGH,
+    school_year_id: SchoolYearQuery = None,
 ) -> SchoolAlertsOut:
     authorize_school(user)
-    result = service.school_alerts(session, level)
+    year = resolve_year(session, school_year_id)
+    result = service.school_alerts(session, level, school_year_id=year.id)
     record_access(
         session,
         user,
         AuditAction.VIEW_SCHOOL_ALERTS,
         class_id=None,
-        details={"level": level.value, "alert_count": len(result.alerts)},
+        details={
+            "level": level.value,
+            "alert_count": len(result.alerts),
+            "school_year_id": year.id,
+        },
     )
     return result
 

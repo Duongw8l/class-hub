@@ -29,11 +29,28 @@ class SchoolYearIn(BaseModel):
         return self
 
 
+class SchoolYearCreateIn(SchoolYearIn):
+    """Tạo một năm học mới (D-113)."""
+
+    # Đặt luôn làm năm hiện hành (mặc định khi mọi người mở hệ thống).
+    make_current: bool = False
+    # Chép lớp từ năm học liền trước và cho học sinh lên lớp: 10Ax → 11Ax, 11Ax → 12Ax, khối 12
+    # ra trường; khối 10 mới để trống chờ nhập. GVCN và phân công để trống.
+    rollover: bool = False
+
+
 class SchoolYearOut(BaseModel):
     id: int
     name: str
     start_date: date
     end_date: date
+    is_current: bool
+
+
+class SchoolYearCreatedOut(BaseModel):
+    school_year: SchoolYearOut
+    classes_created: int  # số lớp tạo sẵn khi chép từ năm trước (0 nếu không chép)
+    students_promoted: int  # số học sinh được đưa lên lớp trên
 
 
 class TeacherRef(BaseModel):
@@ -68,8 +85,10 @@ class AdminClassOut(BaseModel):
 
 
 class SchoolOut(BaseModel):
-    school_year: SchoolYearOut | None  # null khi chưa tạo năm học
-    classes: list[AdminClassOut]
+    # Năm học đang xem (được chọn, mặc định năm hiện hành); null khi chưa tạo năm học nào.
+    school_year: SchoolYearOut | None
+    years: list[SchoolYearOut]  # mọi năm học, mới nhất trước
+    classes: list[AdminClassOut]  # các lớp của năm đang xem
     subject_count: int  # tổng số môn trong danh mục
 
 
@@ -77,6 +96,7 @@ class ClassCreateIn(BaseModel):
     grade_level: Literal[10, 11, 12]
     name: ClassName
     homeroom_teacher_id: int | None = None
+    school_year_id: int | None = None  # bỏ trống là năm hiện hành (D-113)
 
 
 class ClassUpdateIn(BaseModel):

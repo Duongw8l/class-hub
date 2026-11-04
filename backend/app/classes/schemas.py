@@ -1,6 +1,18 @@
+from datetime import date
+
 from pydantic import BaseModel
 
 from app.auth.schemas import UserOut
+
+
+class SchoolYearOut(BaseModel):
+    """Năm học (D-113): ai đăng nhập cũng xem được danh sách để chọn năm cần xem."""
+
+    id: int
+    name: str
+    start_date: date
+    end_date: date
+    is_current: bool
 
 
 class ClassRef(BaseModel):
@@ -19,8 +31,10 @@ class TeachingItem(BaseModel):
 
 class AssignmentsResponse(BaseModel):
     user: UserOut
-    homeroom_classes: list[ClassRef]  # lớp chủ nhiệm
-    teaching: list[TeachingItem]  # lớp-môn được phân công giảng dạy
+    # Năm học của các danh sách dưới (năm được chọn, mặc định năm hiện hành); None khi chưa có năm.
+    school_year: SchoolYearOut | None
+    homeroom_classes: list[ClassRef]  # lớp chủ nhiệm trong năm đó
+    teaching: list[TeachingItem]  # lớp-môn được phân công giảng dạy trong năm đó
     grades: list[int]  # khối xem được (chỉ BGH); giáo viên và Admin để trống
 
 

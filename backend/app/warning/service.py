@@ -260,8 +260,10 @@ def class_alerts(
     )
 
 
-def school_alerts(session: Session, level: RiskLevel) -> SchoolAlertsOut:
-    rows = _sorted(repo.current_alerts(session, levels=[level]))
+def school_alerts(session: Session, level: RiskLevel, *, school_year_id: int) -> SchoolAlertsOut:
+    """Cảnh báo toàn trường của một năm học (D-113)."""
+    rows = _sorted(repo.current_alerts(session, levels=[level], school_year_id=school_year_id))
     return SchoolAlertsOut(
-        counts=counts_out(repo.current_counts(session)), alerts=[alert_out(r) for r in rows]
+        counts=counts_out(repo.current_counts(session, school_year_id=school_year_id)),
+        alerts=[alert_out(r) for r in rows],
     )

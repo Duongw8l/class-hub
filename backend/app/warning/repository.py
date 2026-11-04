@@ -69,7 +69,9 @@ def insert_alert(
     return alert
 
 
-def _current_query(class_id: int | None, levels: Sequence[RiskLevel] | None) -> Select[Any]:
+def _current_query(
+    class_id: int | None, levels: Sequence[RiskLevel] | None, school_year_id: int | None
+) -> Select[Any]:
     latest = _latest_ids()
     query = (
         select(
@@ -87,22 +89,33 @@ def _current_query(class_id: int | None, levels: Sequence[RiskLevel] | None) -> 
     )
     if class_id is not None:
         query = query.where(ClassStudent.class_id == class_id)
+    if school_year_id is not None:
+        query = query.where(SchoolClass.school_year_id == school_year_id)
     if levels is not None:
         query = query.where(RiskAlert.level.in_(levels))
     return query
 
 
 def current_alerts(
-    session: Session, *, class_id: int | None = None, levels: Sequence[RiskLevel] | None = None
+    session: Session,
+    *,
+    class_id: int | None = None,
+    levels: Sequence[RiskLevel] | None = None,
+    school_year_id: int | None = None,
 ) -> list[AlertRow]:
-    """Cảnh báo hiện hành (dòng mới nhất của từng học sinh) của một lớp hoặc toàn trường."""
+    """Cảnh báo hiện hành (dòng mới nhất của từng học sinh) của một lớp, hoặc toàn trường trong một
+    năm học (`school_year_id`, D-113)."""
     rows = session.execute(
-        _current_query(class_id, levels).order_by(SchoolClass.name, Student.student_code)
+        _current_query(class_id, levels, school_year_id).order_by(
+            SchoolClass.name, Student.student_code
+        )
     ).all()
     return [AlertRow(r[0], r[1], r[2], r[3], r[4], r[5]) for r in rows]
 
 
-def current_counts(session: Session, *, class_id: int | None = None) -> dict[str, int]:
+def current_counts(
+    session: Session, *, class_id: int | None = None, school_year_id: int | None = None
+) -> dict[str, int]:
     latest = _latest_ids()
     query = (
         select(RiskAlert.level, func.count())
@@ -112,6 +125,10 @@ def current_counts(session: Session, *, class_id: int | None = None) -> dict[str
     )
     if class_id is not None:
         query = query.where(ClassStudent.class_id == class_id)
+    if school_year_id is not None:
+        query = query.join(SchoolClass, SchoolClass.id == ClassStudent.class_id).where(
+            SchoolClass.school_year_id == school_year_id
+        )
     found = {level.value: count for level, count in session.execute(query).all()}
     return {level.value: found.get(level.value, 0) for level in RiskLevel}
 
@@ -133,7 +150,7 @@ def alert_scope(session: Session, alert_id: int) -> tuple[RiskAlert, int, bool] 
 
 def alert_row(session: Session, alert_id: int) -> AlertRow:
     """Một cảnh báo hiện hành kèm học sinh và lớp (đã biết là cảnh báo hiện hành)."""
-    r = session.execute(_current_query(None, None).where(RiskAlert.id == alert_id)).one()
+    r = session.execute(_current_query(None, None, None).where(RiskAlert.id == alert_id)).one()
     return AlertRow(r[0], r[1], r[2], r[3], r[4], r[5])
 
 

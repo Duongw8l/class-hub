@@ -22,6 +22,7 @@ from app.assistant.llm import LLMProvider
 from app.assistant.scope import load_roster
 from app.auth.audit import record_access
 from app.auth.models import User
+from app.classes.years import resolve_year, year_of_class
 from app.core.authorize import AuthorizationError
 from app.core.enums import AuditAction, ReportScope, ReportStatus
 from app.core.labels import label_vi
@@ -150,22 +151,33 @@ def resolve(session: Session, user: User, target: ReportTarget, student_id: int 
     scope = scope_for(target.type, class_id=target.class_id)
     if scope is ReportScope.GRADE:
         grade = target.grade_level
-        if grade is None or not repo.classes_in_grade(session, grade):
+        year_id = resolve_year(session, target.school_year_id).id
+        if grade is None or not repo.classes_in_grade(session, grade, school_year_id=year_id):
             raise NotFound("Khối này chưa có lớp nào.")
         return Resolved(
-            ReportKey(target.type, scope, grade, target.semester, None, None), None, None
+            ReportKey(target.type, scope, grade, target.semester, None, None, year_id), None, None
         )
     info = _class_or_404(session, target.class_id)
+    class_year = _year_of(session, info.id)
     if scope is ReportScope.CLASS:
-        key = ReportKey(target.type, scope, info.id, target.semester, None, info.id)
+        key = ReportKey(target.type, scope, info.id, target.semester, None, info.id, class_year)
         return Resolved(key, info, None)
     if student_id is None:
         raise ValueError("Nhận xét học sinh cần student_id.")
     student = _student_of(session, info.id, student_id)
     if student is None:
         raise NotFound("Không có học sinh này trong lớp.")
-    key = ReportKey(target.type, scope, student_id, target.semester, target.subject_id, info.id)
+    key = ReportKey(
+        target.type, scope, student_id, target.semester, target.subject_id, info.id, class_year
+    )
     return Resolved(key, info, student)
+
+
+def _year_of(session: Session, class_id: int) -> int:
+    year_id = year_of_class(session, class_id)
+    if year_id is None:
+        raise NotFound("Không có lớp này.")
+    return year_id
 
 
 def load_authorized(session: Session, user: User, report_id: int) -> Report:
@@ -204,7 +216,9 @@ def facts_for(session: Session, resolved: Resolved) -> dict[str, Any]:
     period = cast(Period, key.semester)
     result: dict[str, Any] | None
     if key.scope is ReportScope.GRADE:
-        result = report_facts.grade_facts(session, key.target_id, period, config)
+        result = report_facts.grade_facts(
+            session, key.target_id, period, config, school_year_id=key.school_year_id
+        )
     elif info is None:
         result = None
     elif key.scope is ReportScope.CLASS:
@@ -229,7 +243,9 @@ def facts_for(session: Session, resolved: Resolved) -> dict[str, Any]:
 def roster_for(session: Session, resolved: Resolved) -> list[RosterStudent]:
     """Học sinh mà bộ ẩn danh phải biết để bắt họ tên thật lọt vào dữ liệu hoặc văn bản."""
     if resolved.key.scope is ReportScope.GRADE:
-        classes = repo.classes_in_grade(session, resolved.key.target_id)
+        classes = repo.classes_in_grade(
+            session, resolved.key.target_id, school_year_id=resolved.key.school_year_id
+        )
         return load_roster(session, [c.id for c in classes])
     assert resolved.info is not None
     return load_roster(session, [resolved.info.id])
@@ -362,6 +378,7 @@ def list_reports(session: Session, user: User, target: ReportTarget) -> ReportLi
             semester=target.semester,
             subject_id=target.subject_id,
             student_ids=[s.student_id for s in students],
+            school_year_id=_year_of(session, resolved_class.id),
         )
         items = [
             ReportItemOut(

@@ -6,6 +6,7 @@ import './index.css'
 import { AuthProvider } from './auth/AuthProvider'
 import { router } from './router'
 import { ThemeProvider } from './theme/ThemeProvider'
+import { YearProvider } from './years/YearProvider'
 
 const queryClient = new QueryClient()
 
@@ -14,7 +15,9 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <YearProvider>
+            <RouterProvider router={router} />
+          </YearProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>

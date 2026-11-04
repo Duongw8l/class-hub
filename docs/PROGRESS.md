@@ -566,3 +566,53 @@ Làm theo các yêu cầu: thêm môn và ghi chú cho tài khoản giáo viên 
 2. **Tài khoản** → "Thêm tài khoản" → ô **Vai trò** chọn "Giáo viên Toán" (hoặc môn khác) → thêm **Ghi chú** nếu cần phân biệt người trùng tên → Tạo.
 3. **Năm học & lớp** → bấm một lớp → **Phân công giảng dạy**: mỗi dòng một môn; ô chọn hiện nhóm "Giáo viên <môn đó>" trên đầu, "Giáo viên khác" ở dưới (vẫn chọn được nếu dạy chéo môn). Chọn là lưu ngay.
 4. `make test`, `make lint`.
+
+## Nhiều năm học (D-113)
+
+Làm theo yêu cầu "BGH, GVCN, giáo viên nhập điểm xem lại được các năm học cũ". Nhiều năm học cùng tồn tại, một năm hiện hành; chọn năm ở thanh trên cùng. Phân quyền không đổi: xem lớp năm cũ theo đúng GVCN/phân công của lớp đó.
+
+### Đã làm
+
+- **Schema** — migration thứ 15 (`e5f9c2d7a1b3`): `school_years.is_current` (đúng một năm) và `reports.school_year_id` (nằm trong khoá duy nhất của báo cáo).
+- **Back-end**:
+  - Hàm dùng chung `app/classes/years.py`: năm đang xem, mặc định năm hiện hành; năm không có thì 404.
+  - Thêm `GET /school-years`.
+  - Lọc theo năm: `/me/assignments`, so sánh khối, cảnh báo toàn trường, báo cáo khối, phạm vi trợ lý AI; PDF ghi đúng năm của bản.
+  - Nhập danh sách học sinh: mỗi năm một lớp.
+  - Tên lớp và GVCN không trùng trong cùng năm; sao chép phân công chỉ trong cùng năm.
+  - Trang Tài khoản tính công việc theo năm hiện hành.
+- **Admin**:
+  - `POST /admin/school-years`: tạo năm mới, có thể chép lớp và cho học sinh lên lớp (10→11, 11→12, khối 12 ra trường), có thể đặt luôn làm năm hiện hành.
+  - `PATCH /admin/school-years/{id}`: sửa năm. `POST /admin/school-years/{id}/current`: đặt năm hiện hành.
+  - Hai năm không được chồng ngày.
+- **Giao diện**:
+  - Ô **Năm học** trên thanh trên cùng (hiện khi có từ hai năm), dải báo khi xem năm không phải năm hiện hành.
+  - Mọi trang dùng năm đang chọn: trang chủ, thanh bên, so sánh khối, cảnh báo, báo cáo khối, trợ lý.
+  - Trang Năm học & lớp: bảng các năm, tạo năm mới, sửa năm đang xem, lớp theo năm.
+- **Test**:
+  - `tests/classes/test_school_years.py` (19 test): danh sách năm, quyền Admin; tạo năm có/không chép lớp; trùng tên, chồng ngày; một năm hiện hành; tên lớp và GVCN theo năm; trang Admin theo năm; giáo viên xem lại lớp năm cũ và bị chặn lớp năm mới không được giao; BGH so sánh khối và cảnh báo theo năm; phạm vi trợ lý theo năm; kiểm trùng danh sách học sinh theo năm.
+  - `test_constraints.py`: cùng khoá báo cáo khác năm; chỉ một năm hiện hành.
+  - Cập nhật các test cũ theo chữ ký mới.
+
+### Đã kiểm chứng và còn chờ kiểm chứng
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 15) trên DB dev: năm sẵn có thành năm hiện hành | Đã chạy, đúng |
+| `pytest` toàn bộ back-end (1552 qua, 1 bỏ qua cần mô hình thật; trong container, `data/seed` đã chép lại vào `/data`) | Đã chạy, qua |
+| `ruff check` + `ruff format --check`, `tsc -b`, `eslint` | Đã chạy, qua |
+| API thật: `GET /school-years`, `GET /admin/school`, năm không có → 404 | Đã chạy, đúng |
+| **Trình duyệt thật**: ô Năm học, tạo năm mới có chép lớp, xem lại lớp năm cũ của giáo viên | **Chưa kiểm** |
+| Downgrade migration 15 trên DB có nhiều năm | Chỉ kiểm bằng test (xuống base rồi lên lại trên DB trống) |
+
+### Cách dùng
+
+1. `make migrate` (DB dev đã ở migration 15).
+2. Admin → **Năm học & lớp** → "Tạo năm học mới":
+   - Tick "Chép lớp từ năm trước và cho học sinh lên lớp".
+   - Tick "Đặt làm năm hiện hành" nếu muốn chuyển ngay.
+3. Ở năm mới: gán GVCN, phân công cho các lớp; nhập danh sách khối 10; xử lý học sinh lưu ban (gỡ khỏi lớp mới rồi nhập đúng lớp).
+4. Xem lại năm cũ: chọn năm ở ô **Năm học** trên thanh trên cùng.
+   - BGH thấy toàn trường năm đó.
+   - GVCN/GVBM thấy các lớp mình chủ nhiệm/dạy năm đó.
+   - Năm cũ vẫn sửa được dữ liệu.

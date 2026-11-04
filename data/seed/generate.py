@@ -157,6 +157,7 @@ def generate(
                 "name": SCHOOL_YEAR_NAME,
                 "start_date": SCHOOL_YEAR_START,
                 "end_date": SCHOOL_YEAR_END,
+                "is_current": True,  # năm duy nhất của seed là năm hiện hành (D-113)
             }
         ],
         "subjects": [

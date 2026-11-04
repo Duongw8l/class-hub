@@ -25,11 +25,14 @@ from app.classes.admin_schemas import (
     DeletedOut,
     RemoveStudentIn,
     SchoolOut,
+    SchoolYearCreatedOut,
+    SchoolYearCreateIn,
     SchoolYearIn,
     SchoolYearOut,
     SubjectOut,
     TeacherOut,
 )
+from app.classes.years import SchoolYearQuery
 from app.core.db import DbSession
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -50,8 +53,10 @@ def _run(action: Callable[[], T]) -> T:
 
 
 @router.get("/school", response_model=SchoolOut, summary="Năm học và các lớp (chỉ Admin)")
-def get_school(admin: AdminUser, session: DbSession) -> SchoolOut:
-    return service.get_school(session)
+def get_school(
+    admin: AdminUser, session: DbSession, school_year_id: SchoolYearQuery = None
+) -> SchoolOut:
+    return service.get_school(session, school_year_id)
 
 
 @router.get(
@@ -59,8 +64,42 @@ def get_school(admin: AdminUser, session: DbSession) -> SchoolOut:
     response_model=list[TeacherOut],
     summary="Giáo viên đang hoạt động, để chọn GVCN hoặc người dạy (chỉ Admin)",
 )
-def list_teachers(admin: AdminUser, session: DbSession) -> list[TeacherOut]:
-    return service.list_teachers(session)
+def list_teachers(
+    admin: AdminUser, session: DbSession, school_year_id: SchoolYearQuery = None
+) -> list[TeacherOut]:
+    return service.list_teachers(session, school_year_id)
+
+
+@router.post(
+    "/school-years",
+    response_model=SchoolYearCreatedOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tạo năm học mới, có thể chép lớp và cho học sinh lên lớp (chỉ Admin)",
+)
+def create_school_year(
+    admin: AdminUser, session: DbSession, body: SchoolYearCreateIn
+) -> SchoolYearCreatedOut:
+    return _run(lambda: service.create_school_year(session, admin, body))
+
+
+@router.patch(
+    "/school-years/{year_id}",
+    response_model=SchoolYearOut,
+    summary="Sửa tên, ngày của một năm học (chỉ Admin)",
+)
+def update_school_year(
+    year_id: int, admin: AdminUser, session: DbSession, body: SchoolYearIn
+) -> SchoolYearOut:
+    return _run(lambda: service.update_school_year(session, admin, year_id, body))
+
+
+@router.post(
+    "/school-years/{year_id}/current",
+    response_model=SchoolYearOut,
+    summary="Đặt năm hiện hành (chỉ Admin)",
+)
+def set_current_year(year_id: int, admin: AdminUser, session: DbSession) -> SchoolYearOut:
+    return _run(lambda: service.set_current_year(session, admin, year_id))
 
 
 @router.get(
@@ -75,7 +114,7 @@ def list_subjects(admin: AdminUser, session: DbSession) -> list[SubjectOut]:
 @router.put(
     "/school-year",
     response_model=SchoolYearOut,
-    summary="Tạo năm học đầu tiên hoặc sửa năm học duy nhất (chỉ Admin)",
+    summary="Tạo năm học đầu tiên hoặc sửa năm hiện hành (chỉ Admin)",
 )
 def save_school_year(admin: AdminUser, session: DbSession, body: SchoolYearIn) -> SchoolYearOut:
     return _run(lambda: service.save_school_year(session, admin, body))

@@ -3,6 +3,7 @@ import type { AuthUser } from '../../api/auth'
 import { Icon } from '../Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { UserMenu } from './UserMenu'
+import { YearSelect } from './YearSelect'
 import type { Crumb } from './useBreadcrumbs'
 
 interface TopbarProps {
@@ -11,13 +12,22 @@ interface TopbarProps {
   roleLabel: string
   onOpenMenu: () => void
   onLogout: () => void
+  // Cùng bề ngang với khung nội dung để đường dẫn thẳng hàng với trang (mặc định max-w-7xl).
+  widthClass?: string
 }
 
 // Thanh trên: nút mở menu (màn hình hẹp), đường dẫn, chế độ giao diện, người dùng.
-export function Topbar({ crumbs, user, roleLabel, onOpenMenu, onLogout }: TopbarProps) {
+export function Topbar({
+  crumbs,
+  user,
+  roleLabel,
+  onOpenMenu,
+  onLogout,
+  widthClass = 'max-w-7xl',
+}: TopbarProps) {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-surface/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+      <div className={`mx-auto flex h-16 ${widthClass} items-center gap-3 px-4 sm:px-6 lg:px-8`}>
         <button
           type="button"
           onClick={onOpenMenu}
@@ -53,6 +63,7 @@ export function Topbar({ crumbs, user, roleLabel, onOpenMenu, onLogout }: Topbar
           </ol>
         </nav>
 
+        <YearSelect />
         <ThemeToggle />
         {user && <UserMenu user={user} roleLabel={roleLabel} onLogout={onLogout} />}
       </div>

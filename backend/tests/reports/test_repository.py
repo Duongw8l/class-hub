@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.models import User
+from app.classes.years import current_year
 from app.core.enums import ReportScope, ReportStatus, ReportType
 from app.reports.generation import Outcome
 from app.reports.models import Report
@@ -17,7 +18,13 @@ pytestmark = pytest.mark.db
 
 
 @pytest.fixture
-def key(class_id_of: Callable[[str], int], student_id_of: Callable[[str], int]) -> ReportKey:
+def key(
+    db_session: Session,
+    class_id_of: Callable[[str], int],
+    student_id_of: Callable[[str], int],
+) -> ReportKey:
+    year = current_year(db_session)
+    assert year is not None
     return ReportKey(
         ReportType.CONTACT_SLIP,
         ReportScope.STUDENT,
@@ -25,6 +32,7 @@ def key(class_id_of: Callable[[str], int], student_id_of: Callable[[str], int]) 
         "1",
         None,
         class_id_of("11A2"),
+        year.id,
     )
 
 
@@ -95,6 +103,7 @@ def test_a_key_with_a_subject_is_separate_from_the_one_without(
         key.semester,
         subject_id_of("Ngữ văn"),
         key.class_id,
+        key.school_year_id,
     )
     other_subject = ReportKey(
         ReportType.SUBJECT_COMMENT,
@@ -103,6 +112,7 @@ def test_a_key_with_a_subject_is_separate_from_the_one_without(
         key.semester,
         subject_id_of("Toán"),
         key.class_id,
+        key.school_year_id,
     )
     store_outcome(db_session, with_subject, outcome("Văn."), user_id=teacher.id, model="m")
     store_outcome(db_session, other_subject, outcome("Toán."), user_id=teacher.id, model="m")

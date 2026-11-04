@@ -30,6 +30,7 @@ from app.assistant.prompts import PROMPT_VERSION, load_system_prompt
 from app.assistant.scope import ClassItem, load_roster, load_scope, scope_prompt
 from app.assistant.tools import ToolContext, ToolOutcome, run_tool, tool_specs
 from app.auth.models import User
+from app.classes.years import resolve_year, year_of_class
 from app.core.authorize import AuthorizationError, authorize, authorize_assistant
 from app.core.config import get_settings
 from app.core.enums import AssistantFeedback
@@ -62,6 +63,7 @@ class ChatRequest:
     class_id: int | None = None  # lớp đang mở trên màn hình
     subject_id: int | None = None  # môn đang mở (cần đi kèm class_id)
     semester: Period | None = None  # kỳ đang xem
+    school_year_id: int | None = None  # năm học đang chọn (D-113); None là năm hiện hành
 
 
 @dataclass(frozen=True)
@@ -177,8 +179,16 @@ def ask(
     LLMError (502), UnsafeRequest (500). Lỗi gọi LLM vẫn được ghi vào ai_logs trước khi ném."""
     authorize_assistant(user)
     user_id = user.id
-    scope = load_scope(session, user)
     open_class, open_subject = _open_screen(session, user, request)
+    # Năm học của phiên: năm của lớp đang mở nếu có, không thì năm đang chọn (mặc định năm hiện
+    # hành). Phạm vi lớp chỉ gồm các lớp của năm đó (D-113).
+    year_id = (
+        year_of_class(session, open_class.id)
+        if open_class is not None
+        else resolve_year(session, request.school_year_id).id
+    )
+    assert year_id is not None  # lớp đang mở đã qua _open_screen nên có thật
+    scope = load_scope(session, user, school_year_id=year_id)
     implicit_class = False
     if open_class is None and len(scope.classes) == 1:
         # Người hỏi chỉ có đúng một lớp (ví dụ GVCN thuần): lấy lớp đó làm mặc định để nhận ra tên
@@ -221,6 +231,7 @@ def ask(
         subject_id=open_subject[0] if open_subject else None,
         semester=semester,
         embedder=embedder,
+        school_year_id=year_id,
     )
     system = (
         load_system_prompt()

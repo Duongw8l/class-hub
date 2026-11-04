@@ -57,7 +57,9 @@ def chat(
             detail="Trợ lý AI chưa được cấu hình. Hãy báo quản trị viên.",
         ) from error
 
-    request = service.ChatRequest(body.question, body.class_id, body.subject_id, body.semester)
+    request = service.ChatRequest(
+        body.question, body.class_id, body.subject_id, body.semester, body.school_year_id
+    )
     try:
         result = service.ask(session, user, provider, request, embedder=embedder)
     except service.RateLimited:

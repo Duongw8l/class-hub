@@ -40,9 +40,11 @@ def _capitalized(text: str) -> str:
     return text[:1].upper() + text[1:]
 
 
-def _school_year(session: Session) -> str:
-    # Hệ thống chỉ có một năm học (D-098).
-    return session.scalar(select(SchoolYear.name).order_by(SchoolYear.id.desc()).limit(1)) or ""
+def _school_year(session: Session, report: Report) -> str:
+    """Tên năm học của chính bản này (D-113), không phải năm mới nhất."""
+    return (
+        session.scalar(select(SchoolYear.name).where(SchoolYear.id == report.school_year_id)) or ""
+    )
 
 
 def _homeroom_teacher(session: Session, class_id: int) -> str | None:
@@ -102,7 +104,7 @@ def build_document(session: Session, report: Report) -> pdf.PdfDocument:
     title_role, signer = _signer(session, report)
     common: dict[str, Any] = {
         "school_name": get_settings().school_name,
-        "school_year": _school_year(session),
+        "school_year": _school_year(session, report),
         "body": report.final_text or "",
         "signer_title": title_role,
         "signer_name": signer,

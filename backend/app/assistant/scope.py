@@ -39,14 +39,16 @@ class Scope:
     teaching: tuple[TeachingItem, ...]
     classes: tuple[ClassItem, ...]  # mọi lớp người dùng được hỏi (GVCN, GVBM, hoặc toàn trường)
     subjects: tuple[tuple[int, str], ...]  # (id, tên) mọi môn của trường
+    year_name: str = ""  # năm học của phạm vi (D-113)
 
     @property
     def class_ids(self) -> list[int]:
         return [c.id for c in self.classes]
 
 
-def load_scope(session: Session, user: User) -> Scope:
-    assignments = get_assignments(session, user)
+def load_scope(session: Session, user: User, *, school_year_id: int) -> Scope:
+    """Lớp và môn người dùng được hỏi, chỉ trong một năm học (D-113)."""
+    assignments = get_assignments(session, user, school_year_id)
     homeroom = tuple(ClassItem(c.id, c.name, c.grade_level) for c in assignments.homeroom_classes)
     teaching = tuple(
         TeachingItem(t.class_id, t.class_name, t.subject_id, t.subject_name)
@@ -56,9 +58,9 @@ def load_scope(session: Session, user: User) -> Scope:
         classes = tuple(
             ClassItem(r[0], r[1], r[2])
             for r in session.execute(
-                select(SchoolClass.id, SchoolClass.name, SchoolClass.grade_level).order_by(
-                    SchoolClass.grade_level, SchoolClass.name
-                )
+                select(SchoolClass.id, SchoolClass.name, SchoolClass.grade_level)
+                .where(SchoolClass.school_year_id == school_year_id)
+                .order_by(SchoolClass.grade_level, SchoolClass.name)
             )
         )
     else:
@@ -69,7 +71,8 @@ def load_scope(session: Session, user: User) -> Scope:
     subjects = tuple(
         (r[0], r[1]) for r in session.execute(select(Subject.id, Subject.name).order_by(Subject.id))
     )
-    return Scope(user.role, homeroom, teaching, classes, subjects)
+    year_name = assignments.school_year.name if assignments.school_year else ""
+    return Scope(user.role, homeroom, teaching, classes, subjects, year_name)
 
 
 def load_roster(session: Session, class_ids: list[int]) -> list[RosterStudent]:
@@ -95,6 +98,8 @@ def scope_prompt(
 ) -> str:
     """Khối "Bối cảnh" nối vào system prompt. Không có tên giáo viên hay học sinh nào."""
     lines = ["# Bối cảnh của phiên này", ""]
+    if scope.year_name:
+        lines.append(f"- Năm học đang xem: {scope.year_name} (các lớp dưới đây thuộc năm học này).")
     if scope.role is UserRole.PRINCIPAL:
         lines.append(f"- Người hỏi: {label_vi(UserRole.PRINCIPAL)}, xem được toàn trường.")
     else:

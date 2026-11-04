@@ -25,6 +25,9 @@ class ReportTarget(BaseModel):
     # int có giới hạn (không dùng Literal): tham số truy vấn đến dưới dạng chuỗi "11".
     grade_level: int | None = Field(default=None, ge=10, le=12)
     subject_id: int | None = None
+    # Năm học của báo cáo khối (D-113); bỏ trống là năm hiện hành. Bản theo lớp hay học sinh luôn
+    # dùng năm của lớp, giá trị này bị bỏ qua.
+    school_year_id: int | None = None
 
     @model_validator(mode="after")
     def _check_shape(self) -> Self:

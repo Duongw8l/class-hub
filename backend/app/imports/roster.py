@@ -156,15 +156,24 @@ def validate_roster(
     return results
 
 
-def class_memberships(session: Session, codes: Sequence[str]) -> dict[str, list[tuple[int, str]]]:
-    """Với mỗi mã (viết hoa) đã có trong hệ thống: các lớp em đang thuộc. Chỉ đọc."""
+def class_memberships(
+    session: Session, codes: Sequence[str], *, school_year_id: int
+) -> dict[str, list[tuple[int, str]]]:
+    """Với mỗi mã (viết hoa) đã có trong hệ thống: các lớp em đang thuộc TRONG năm học đó. Chỉ đọc.
+
+    Mỗi năm một học sinh thuộc một lớp (D-113): lớp của các năm khác (ví dụ 10A1 năm trước của em
+    nay học 11A1) không tính là trùng.
+    """
     if not codes:
         return {}
     rows = session.execute(
         select(Student.student_code, SchoolClass.id, SchoolClass.name)
         .join(ClassStudent, ClassStudent.student_id == Student.id)
         .join(SchoolClass, SchoolClass.id == ClassStudent.class_id)
-        .where(func.upper(Student.student_code).in_(list(codes)))
+        .where(
+            func.upper(Student.student_code).in_(list(codes)),
+            SchoolClass.school_year_id == school_year_id,
+        )
     )
     result: dict[str, list[tuple[int, str]]] = {}
     for code, class_id, class_name in rows:
@@ -195,11 +204,15 @@ def write_roster(session: Session, job: ImportJob) -> tuple[int, int]:
         )
     }
     if existing:
+        # Chỉ xét lớp khác CÙNG năm học với lớp đang nhập (D-113).
+        same_year = select(SchoolClass.school_year_id).where(SchoolClass.id == job.class_id)
         elsewhere = session.scalar(
             select(ClassStudent.id)
+            .join(SchoolClass, SchoolClass.id == ClassStudent.class_id)
             .where(
                 ClassStudent.student_id.in_(list(existing.values())),
                 ClassStudent.class_id != job.class_id,
+                SchoolClass.school_year_id == same_year.scalar_subquery(),
             )
             .limit(1)
         )

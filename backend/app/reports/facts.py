@@ -206,10 +206,15 @@ def class_facts(
 
 
 def grade_facts(
-    session: Session, grade_level: int, period: Period, config: AnalyticsConfig
+    session: Session,
+    grade_level: int,
+    period: Period,
+    config: AnalyticsConfig,
+    *,
+    school_year_id: int,
 ) -> dict[str, Any]:
-    """So sánh các lớp trong một khối."""
-    classes = repo.classes_in_grade(session, grade_level)
+    """So sánh các lớp trong một khối của một năm học (D-113)."""
+    classes = repo.classes_in_grade(session, grade_level, school_year_id=school_year_id)
     data = analytics.build_grade_overview(session, grade_level, classes, period, config).model_dump(
         mode="json"
     )

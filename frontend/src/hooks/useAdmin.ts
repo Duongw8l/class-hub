@@ -3,6 +3,7 @@ import {
   confirmUserImport,
   copyAssignments,
   createClass,
+  createSchoolYear,
   createUser,
   deleteClass,
   fetchAdminUsers,
@@ -16,12 +17,15 @@ import {
   resetPassword,
   saveSchoolYear,
   setAssignment,
+  setCurrentYear,
   updateClass,
+  updateSchoolYear,
   updateUser,
 } from '../api/admin'
-import type { UserUpdate } from '../api/admin'
+import type { SchoolYearInput, UserUpdate } from '../api/admin'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
+import { useSelectedYear } from '../years/context'
 
 // Lỗi 4xx (không có quyền, không tìm thấy) không đổi khi thử lại; chỉ thử lại lỗi mạng và 5xx.
 const retry = (failureCount: number, error: Error) =>
@@ -37,11 +41,13 @@ export function useAdminUsers() {
   })
 }
 
+// Năm học đang chọn ở thanh trên cùng (D-113): trang quản trị xem và sửa lớp của năm đó.
 export function useSchool() {
   const { token } = useAuth()
+  const { yearId } = useSelectedYear()
   return useQuery({
-    queryKey: ['admin-school', token],
-    queryFn: ({ signal }) => fetchSchool(signal),
+    queryKey: ['admin-school', token, yearId],
+    queryFn: ({ signal }) => fetchSchool(yearId, signal),
     enabled: token !== null,
     retry,
   })
@@ -49,9 +55,10 @@ export function useSchool() {
 
 export function useTeachers() {
   const { token } = useAuth()
+  const { yearId } = useSelectedYear()
   return useQuery({
-    queryKey: ['admin-teachers', token],
-    queryFn: ({ signal }) => fetchTeachers(signal),
+    queryKey: ['admin-teachers', token, yearId],
+    queryFn: ({ signal }) => fetchTeachers(yearId, signal),
     enabled: token !== null,
     retry,
   })
@@ -88,6 +95,7 @@ export function useRefreshAdmin() {
       client.invalidateQueries({ queryKey: ['admin-school'] }),
       client.invalidateQueries({ queryKey: ['admin-teachers'] }),
       client.invalidateQueries({ queryKey: ['admin-subjects'] }),
+      client.invalidateQueries({ queryKey: ['school-years'] }),
       client.invalidateQueries({ queryKey: ['admin-assignments'] }),
       // Trang chủ và thanh bên của giáo viên đọc lớp chủ nhiệm / phân công từ đây.
       client.invalidateQueries({ queryKey: ['assignments'] }),
@@ -123,6 +131,28 @@ export function useConfirmUserImport() {
 export function useSaveSchoolYear() {
   const refresh = useRefreshAdmin()
   return useMutation({ mutationFn: saveSchoolYear, onSuccess: refresh })
+}
+
+export function useCreateSchoolYear() {
+  const refresh = useRefreshAdmin()
+  return useMutation({ mutationFn: createSchoolYear, onSuccess: refresh })
+}
+
+export function useUpdateSchoolYear() {
+  const refresh = useRefreshAdmin()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: SchoolYearInput }) => updateSchoolYear(id, body),
+    onSuccess: refresh,
+  })
+}
+
+// Đổi năm hiện hành làm đổi năm mặc định của mọi trang: làm mới hết các truy vấn.
+export function useSetCurrentYear() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => setCurrentYear(id),
+    onSuccess: () => client.invalidateQueries(),
+  })
 }
 
 export function useCreateClass() {

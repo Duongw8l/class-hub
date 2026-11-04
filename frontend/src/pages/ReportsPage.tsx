@@ -14,6 +14,7 @@ import { useGradeOverview, usePeriod } from '../hooks/useAnalytics'
 import { useAssignments } from '../hooks/useAssignments'
 import { useReportList } from '../hooks/useReports'
 import type { ReportTarget } from '../api/reports'
+import { useSelectedYear } from '../years/context'
 
 const PERIODS = ['1', '2', 'year'] as const
 // Nhận xét môn chỉ viết cho từng học kỳ (back-end cũng từ chối cả năm).
@@ -236,11 +237,12 @@ function PrincipalWorkspace({ grades, ...props }: WorkspaceProps & { grades: num
   const grade = grades.find((item) => item === requested) ?? grades[0]
   // Danh sách lớp của khối lấy từ tổng quan khối (cùng nguồn với màn hình so sánh các lớp).
   const overview = useGradeOverview(grade, '1')
+  const { yearId } = useSelectedYear() // báo cáo khối của năm đang chọn (D-113)
   const classes = overview.data?.classes ?? []
   const classId = classes.find((item) => item.class_id === Number(params.get('class')))?.class_id
   const target: ReportTarget =
     classId === undefined
-      ? { type, semester: period, gradeLevel: grade }
+      ? { type, semester: period, gradeLevel: grade, schoolYearId: yearId }
       : { type, semester: period, classId }
   const scopeLabel =
     classId === undefined

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { describeRole } from '../auth/roles'
 import { useAssignments } from '../hooks/useAssignments'
@@ -10,6 +10,10 @@ import { Sidebar } from './layout/Sidebar'
 import type { NavGroup } from './layout/Sidebar'
 import { Topbar } from './layout/Topbar'
 import { useBreadcrumbs } from './layout/useBreadcrumbs'
+import { PastYearNotice } from './layout/YearSelect'
+
+// Các trang hiện bảng rộng (nhiều cột, ghi chú dài): bỏ giới hạn bề ngang của khung nội dung.
+const WIDE_PAGES = ['/admin/users']
 
 const SIDEBAR_KEY = 'thda.sidebar'
 
@@ -104,6 +108,11 @@ export function AppLayout() {
     }
   }, [drawerShown])
 
+  // Trang có bảng nhiều cột dùng hết bề ngang màn hình thay vì khung 7xl ở giữa.
+  const { pathname } = useLocation()
+  const wide = WIDE_PAGES.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  const width = wide ? 'max-w-none' : 'max-w-7xl'
+
   return (
     <AssistantProvider>
       <div className="min-h-screen lg:flex">
@@ -128,12 +137,14 @@ export function AppLayout() {
             roleLabel={data ? describeRole(data) : ''}
             onOpenMenu={() => setDrawerOpen(true)}
             onLogout={logout}
+            widthClass={width}
           />
           <main
             id="noi-dung"
             tabIndex={-1}
-            className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 py-6 outline-none sm:px-6 lg:px-8"
+            className={`mx-auto w-full ${width} flex-1 space-y-6 px-4 py-6 outline-none sm:px-6 lg:px-8`}
           >
+            <PastYearNotice />
             <Outlet />
           </main>
         </div>

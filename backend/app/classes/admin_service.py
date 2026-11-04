@@ -1,11 +1,12 @@
 """Quản trị năm học, lớp, GVCN, phân công giảng dạy, gỡ học sinh khỏi lớp (Admin, D-098, D-099).
 
-Chỉ một năm học (D-098). Mọi hàm ném `AdminNotFound` (404), `AdminConflict` (409) hoặc
+Nhiều năm học, một năm hiện hành (D-113, thay cho "một năm học" của D-098); lớp, GVCN, phân công
+tính theo năm. Mọi hàm ném `AdminNotFound` (404), `AdminConflict` (409) hoặc
 `AdminInvalid` (422) kèm thông điệp tiếng Việt để router đổi thẳng thành HTTP. Không hàm nào trả
 tên hay mã học sinh.
 """
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.auth.audit import record_access
@@ -18,6 +19,8 @@ from app.classes.admin_schemas import (
     ClassCreateIn,
     ClassUpdateIn,
     SchoolOut,
+    SchoolYearCreatedOut,
+    SchoolYearCreateIn,
     SchoolYearIn,
     SchoolYearOut,
     SubjectOut,
@@ -32,6 +35,7 @@ from app.classes.models import (
     Subject,
     TeachingAssignment,
 )
+from app.classes.years import current_year, list_years, resolve_year_id
 from app.core.enums import AuditAction, UserRole
 from app.imports.models import ImportJob
 from app.warning.models import RiskAlert
@@ -60,11 +64,26 @@ class AdminInvalid(AdminError):
 # --- Năm học và danh sách lớp --------------------------------------------------
 
 
-def _the_school_year(session: Session) -> SchoolYear | None:
-    return session.scalars(select(SchoolYear).order_by(SchoolYear.id).limit(1)).first()
+def _year_out(year: SchoolYear) -> SchoolYearOut:
+    return SchoolYearOut(
+        id=year.id,
+        name=year.name,
+        start_date=year.start_date,
+        end_date=year.end_date,
+        is_current=year.is_current,
+    )
 
 
-def _class_rows(session: Session, class_id: int | None = None) -> list[AdminClassOut]:
+def _get_year(session: Session, year_id: int) -> SchoolYear:
+    year = session.get(SchoolYear, year_id)
+    if year is None:
+        raise AdminNotFound("Không có năm học này.")
+    return year
+
+
+def _class_rows(
+    session: Session, class_id: int | None = None, *, school_year_id: int | None = None
+) -> list[AdminClassOut]:
     students = (
         select(func.count())
         .select_from(ClassStudent)
@@ -84,6 +103,8 @@ def _class_rows(session: Session, class_id: int | None = None) -> list[AdminClas
     )
     if class_id is not None:
         statement = statement.where(SchoolClass.id == class_id)
+    if school_year_id is not None:
+        statement = statement.where(SchoolClass.school_year_id == school_year_id)
     return [
         AdminClassOut(
             id=row[0].id,
@@ -101,15 +122,14 @@ def _class_rows(session: Session, class_id: int | None = None) -> list[AdminClas
     ]
 
 
-def get_school(session: Session) -> SchoolOut:
-    year = _the_school_year(session)
+def get_school(session: Session, school_year_id: int | None = None) -> SchoolOut:
+    """Năm học đang xem (mặc định năm hiện hành) và các lớp của năm đó, kèm danh sách mọi năm."""
+    year_id = resolve_year_id(session, school_year_id)
+    year = None if year_id is None else session.get(SchoolYear, year_id)
     return SchoolOut(
-        school_year=None
-        if year is None
-        else SchoolYearOut(
-            id=year.id, name=year.name, start_date=year.start_date, end_date=year.end_date
-        ),
-        classes=_class_rows(session),
+        school_year=None if year is None else _year_out(year),
+        years=[_year_out(y) for y in list_years(session)],
+        classes=[] if year is None else _class_rows(session, school_year_id=year.id),
         subject_count=session.scalar(select(func.count()).select_from(Subject)) or 0,
     )
 
@@ -122,15 +142,17 @@ def list_subjects(session: Session) -> list[SubjectOut]:
     return [SubjectOut(id=r[0], name=r[1], is_elective=r[2]) for r in rows]
 
 
-def list_teachers(session: Session) -> list[TeacherOut]:
+def list_teachers(session: Session, school_year_id: int | None = None) -> list[TeacherOut]:
     """Giáo viên đang hoạt động (cho ô chọn GVCN và người dạy). Tài khoản bị khoá không có mặt.
 
-    Trả kèm môn của giáo viên ("Giáo viên Toán") để ô chọn hiện cạnh tên và đưa GV đúng môn lên đầu
-    khi phân công (D-112); đây chỉ là nhãn, không quyết định ai được phân công môn gì.
+    `homeroom_class` là lớp chủ nhiệm trong năm học được chọn (mặc định năm hiện hành): mỗi năm một
+    giáo viên chủ nhiệm một lớp (D-113). Trả kèm môn của giáo viên ("Giáo viên Toán") để ô chọn hiện
+    cạnh tên và đưa GV đúng môn lên đầu khi phân công (D-112); chỉ là nhãn.
     """
+    year_id = resolve_year_id(session, school_year_id)
     homeroom = (
         select(SchoolClass.name)
-        .where(SchoolClass.homeroom_teacher_id == User.id)
+        .where(SchoolClass.homeroom_teacher_id == User.id, SchoolClass.school_year_id == year_id)
         .order_by(SchoolClass.name)
         .limit(1)
         .scalar_subquery()
@@ -156,38 +178,203 @@ def list_teachers(session: Session) -> list[TeacherOut]:
     ]
 
 
-def save_school_year(session: Session, admin: User, data: SchoolYearIn) -> SchoolYearOut:
-    """Tạo năm học đầu tiên, hoặc sửa năm học duy nhất (D-098)."""
-    year = _the_school_year(session)
-    if year is None:
-        year = SchoolYear(name=data.name, start_date=data.start_date, end_date=data.end_date)
-        session.add(year)
-        created = True
-    else:
-        earliest, latest = session.execute(
-            select(func.min(Attendance.date), func.max(Attendance.date))
-        ).one()
-        if earliest is not None and (earliest < data.start_date or latest > data.end_date):
-            raise AdminConflict(
-                "Đã có dữ liệu điểm danh nằm ngoài khoảng ngày mới. "
-                "Hãy chọn khoảng ngày bao trùm các ngày đã điểm danh."
-            )
-        year.name = data.name
-        year.start_date = data.start_date
-        year.end_date = data.end_date
-        created = False
+def _check_year_name(session: Session, name: str, *, except_id: int | None) -> None:
+    statement = select(SchoolYear.id).where(func.lower(SchoolYear.name) == name.lower())
+    if except_id is not None:
+        statement = statement.where(SchoolYear.id != except_id)
+    if session.scalar(statement.limit(1)) is not None:
+        raise AdminConflict(f"Đã có năm học tên {name}.")
+
+
+def _check_overlap(session: Session, data: SchoolYearIn, *, except_id: int | None) -> None:
+    """Hai năm học không được chồng ngày: điểm danh một ngày phải thuộc đúng một năm."""
+    statement = select(SchoolYear.name).where(
+        SchoolYear.start_date <= data.end_date, SchoolYear.end_date >= data.start_date
+    )
+    if except_id is not None:
+        statement = statement.where(SchoolYear.id != except_id)
+    other = session.scalar(statement.limit(1))
+    if other is not None:
+        raise AdminConflict(f"Khoảng ngày bị chồng lên năm học {other}.")
+
+
+def _check_attendance_inside(session: Session, year: SchoolYear, data: SchoolYearIn) -> None:
+    """Đổi ngày của một năm không được bỏ ra ngoài các ngày đã điểm danh của CHÍNH năm đó."""
+    earliest, latest = session.execute(
+        select(func.min(Attendance.date), func.max(Attendance.date))
+        .join(ClassStudent, ClassStudent.id == Attendance.class_student_id)
+        .join(SchoolClass, SchoolClass.id == ClassStudent.class_id)
+        .where(SchoolClass.school_year_id == year.id)
+    ).one()
+    if earliest is not None and (earliest < data.start_date or latest > data.end_date):
+        raise AdminConflict(
+            "Đã có dữ liệu điểm danh nằm ngoài khoảng ngày mới. "
+            "Hãy chọn khoảng ngày bao trùm các ngày đã điểm danh."
+        )
+
+
+def _make_current(session: Session, year: SchoolYear) -> None:
+    # Bỏ cờ ở năm cũ trước (chỉ mục duy nhất một phần chỉ cho một dòng is_current), rồi mới đặt.
+    session.execute(
+        update(SchoolYear)
+        .where(SchoolYear.is_current.is_(True), SchoolYear.id != year.id)
+        .values(is_current=False)
+    )
+    session.flush()
+    year.is_current = True
+    session.flush()
+
+
+def _edit_year(session: Session, admin: User, year: SchoolYear, data: SchoolYearIn) -> None:
+    _check_year_name(session, data.name, except_id=year.id)
+    _check_overlap(session, data, except_id=year.id)
+    _check_attendance_inside(session, year, data)
+    year.name = data.name
+    year.start_date = data.start_date
+    year.end_date = data.end_date
     session.flush()
     record_access(
         session,
         admin,
         AuditAction.UPDATE_SCHOOL_YEAR,
         class_id=None,
-        details={"school_year_id": year.id, "created": created},
+        details={"school_year_id": year.id, "created": False},
         commit=False,
     )
     session.commit()
-    return SchoolYearOut(
-        id=year.id, name=year.name, start_date=year.start_date, end_date=year.end_date
+
+
+def save_school_year(session: Session, admin: User, data: SchoolYearIn) -> SchoolYearOut:
+    """Tạo năm học đầu tiên (thành năm hiện hành), hoặc sửa năm hiện hành.
+
+    Giữ cho tương thích; tạo thêm năm thứ hai trở đi dùng `create_school_year` (D-113).
+    """
+    year = current_year(session)
+    if year is None:
+        return create_school_year(
+            session, admin, SchoolYearCreateIn(**data.model_dump(), make_current=True)
+        ).school_year
+    _edit_year(session, admin, year, data)
+    return _year_out(year)
+
+
+def update_school_year(
+    session: Session, admin: User, year_id: int, data: SchoolYearIn
+) -> SchoolYearOut:
+    """Sửa tên, ngày của một năm học bất kỳ (năm cũ vẫn sửa được, D-113)."""
+    year = _get_year(session, year_id)
+    _edit_year(session, admin, year, data)
+    return _year_out(year)
+
+
+def set_current_year(session: Session, admin: User, year_id: int) -> SchoolYearOut:
+    """Đặt năm hiện hành: năm mọi người thấy mặc định khi mở hệ thống."""
+    year = _get_year(session, year_id)
+    _make_current(session, year)
+    record_access(
+        session,
+        admin,
+        AuditAction.UPDATE_SCHOOL_YEAR,
+        class_id=None,
+        details={"school_year_id": year.id, "made_current": True},
+        commit=False,
+    )
+    session.commit()
+    return _year_out(year)
+
+
+def _promoted_name(name: str, grade_level: int) -> str:
+    """Tên lớp năm sau của lớp này: 10A1 → 11A1, 11A3 → 12A3 (tên lớp luôn bắt đầu bằng số khối)."""
+    prefix = str(grade_level)
+    rest = name[len(prefix) :] if name.startswith(prefix) else name
+    return f"{grade_level + 1}{rest}"
+
+
+def _rollover(session: Session, source: SchoolYear, target: SchoolYear) -> tuple[int, int]:
+    """Chép lớp từ `source` sang `target` và cho học sinh lên lớp. Trả (số lớp tạo, số HS lên lớp).
+
+    - Mọi tên lớp của năm trước được tạo lại (lớp trống), cộng các lớp đích của học sinh lên lớp.
+    - Học sinh lớp 10Ax → 11Ax, 11Ax → 12Ax. Khối 12 ra trường (không chép học sinh).
+    - Không chép GVCN, phân công; điểm, điểm danh, rèn luyện vẫn nằm ở năm cũ.
+    Học sinh lưu ban hay chuyển lớp: Admin gỡ khỏi lớp mới (chưa có dữ liệu nên gỡ được) rồi nhập
+    vào đúng lớp.
+    """
+    classes = session.scalars(
+        select(SchoolClass)
+        .where(SchoolClass.school_year_id == source.id)
+        .order_by(SchoolClass.grade_level, SchoolClass.name)
+    ).all()
+    wanted: dict[str, int] = {c.name: c.grade_level for c in classes}
+    promotions: list[tuple[int, str]] = []
+    for school_class in classes:
+        if school_class.grade_level < 12:
+            new_name = _promoted_name(school_class.name, school_class.grade_level)
+            wanted.setdefault(new_name, school_class.grade_level + 1)
+            promotions.append((school_class.id, new_name))
+
+    created: dict[str, int] = {}
+    for name, grade in sorted(wanted.items(), key=lambda item: (item[1], item[0])):
+        new_class = SchoolClass(school_year_id=target.id, grade_level=grade, name=name)
+        session.add(new_class)
+        session.flush()
+        created[name] = new_class.id
+
+    rows: list[dict[str, int]] = []
+    for source_id, new_name in promotions:
+        for student_id in session.scalars(
+            select(ClassStudent.student_id).where(ClassStudent.class_id == source_id)
+        ):
+            rows.append({"class_id": created[new_name], "student_id": student_id})
+    if rows:
+        session.execute(insert(ClassStudent), rows)
+    return len(created), len(rows)
+
+
+def create_school_year(
+    session: Session, admin: User, data: SchoolYearCreateIn
+) -> SchoolYearCreatedOut:
+    """Tạo một năm học mới; có thể chép lớp và cho học sinh lên lớp từ năm liền trước (D-113).
+
+    Năm đầu tiên của trường luôn thành năm hiện hành.
+    """
+    _check_year_name(session, data.name, except_id=None)
+    _check_overlap(session, data, except_id=None)
+    first = current_year(session) is None
+    source = None
+    if data.rollover:
+        source = session.scalars(
+            select(SchoolYear)
+            .where(SchoolYear.end_date < data.start_date)
+            .order_by(SchoolYear.start_date.desc())
+            .limit(1)
+        ).first()
+        if source is None:
+            raise AdminInvalid("Chưa có năm học nào trước năm này để chép lớp.")
+
+    year = SchoolYear(name=data.name, start_date=data.start_date, end_date=data.end_date)
+    session.add(year)
+    session.flush()
+    classes_created, promoted = (0, 0) if source is None else _rollover(session, source, year)
+    if data.make_current or first:
+        _make_current(session, year)
+    record_access(
+        session,
+        admin,
+        AuditAction.UPDATE_SCHOOL_YEAR,
+        class_id=None,
+        details={
+            "school_year_id": year.id,
+            "created": True,
+            "rollover_from": None if source is None else source.id,
+            "classes_created": classes_created,
+            "students_promoted": promoted,
+            "made_current": year.is_current,
+        },
+        commit=False,
+    )
+    session.commit()
+    return SchoolYearCreatedOut(
+        school_year=_year_out(year), classes_created=classes_created, students_promoted=promoted
     )
 
 
@@ -201,26 +388,37 @@ def _active_teacher(session: Session, teacher_id: int) -> User:
     return teacher
 
 
-def _check_homeroom(session: Session, teacher_id: int, *, for_class: int | None) -> None:
+def _check_homeroom(
+    session: Session, teacher_id: int, *, for_class: int | None, school_year_id: int
+) -> None:
+    """Mỗi giáo viên chủ nhiệm nhiều nhất một lớp trong MỘT năm học (năm khác không tính, D-113)."""
     _active_teacher(session, teacher_id)
-    statement = select(SchoolClass.name).where(SchoolClass.homeroom_teacher_id == teacher_id)
+    statement = select(SchoolClass.name).where(
+        SchoolClass.homeroom_teacher_id == teacher_id,
+        SchoolClass.school_year_id == school_year_id,
+    )
     if for_class is not None:
         statement = statement.where(SchoolClass.id != for_class)
     other = session.scalar(statement.limit(1))
     if other is not None:
         raise AdminConflict(
-            f"Giáo viên này đang chủ nhiệm lớp {other}. Mỗi giáo viên chỉ chủ nhiệm một lớp."
+            f"Giáo viên này đang chủ nhiệm lớp {other}. Mỗi giáo viên chỉ chủ nhiệm một lớp "
+            "trong một năm học."
         )
 
 
 def _check_class_name(
-    session: Session, name: str, grade_level: int, *, except_id: int | None
+    session: Session, name: str, grade_level: int, *, except_id: int | None, school_year_id: int
 ) -> None:
+    """Tên lớp không trùng trong cùng năm học (năm nào cũng có 10A1, D-113)."""
     if not name.startswith(str(grade_level)):
         raise AdminInvalid(
             f"Tên lớp khối {grade_level} phải bắt đầu bằng {grade_level} (ví dụ {grade_level}A1)."
         )
-    statement = select(SchoolClass.id).where(func.lower(SchoolClass.name) == name.lower())
+    statement = select(SchoolClass.id).where(
+        func.lower(SchoolClass.name) == name.lower(),
+        SchoolClass.school_year_id == school_year_id,
+    )
     if except_id is not None:
         statement = statement.where(SchoolClass.id != except_id)
     if session.scalar(statement.limit(1)) is not None:
@@ -235,12 +433,16 @@ def _get_class(session: Session, class_id: int) -> SchoolClass:
 
 
 def create_class(session: Session, admin: User, data: ClassCreateIn) -> AdminClassOut:
-    year = _the_school_year(session)
-    if year is None:
-        raise AdminConflict("Hãy tạo năm học trước khi tạo lớp.")
-    _check_class_name(session, data.name, data.grade_level, except_id=None)
+    """Tạo lớp trong năm học được chọn (mặc định năm hiện hành, D-113)."""
+    if data.school_year_id is None:
+        year = current_year(session)
+        if year is None:
+            raise AdminConflict("Hãy tạo năm học trước khi tạo lớp.")
+    else:
+        year = _get_year(session, data.school_year_id)
+    _check_class_name(session, data.name, data.grade_level, except_id=None, school_year_id=year.id)
     if data.homeroom_teacher_id is not None:
-        _check_homeroom(session, data.homeroom_teacher_id, for_class=None)
+        _check_homeroom(session, data.homeroom_teacher_id, for_class=None, school_year_id=year.id)
     school_class = SchoolClass(
         school_year_id=year.id,
         grade_level=data.grade_level,
@@ -267,12 +469,21 @@ def update_class(
     school_class = _get_class(session, class_id)
     fields = data.model_fields_set
     details: dict[str, object] = {"fields": sorted(fields)}
+    year_id = school_class.school_year_id
     if "name" in fields and data.name is not None:
-        _check_class_name(session, data.name, school_class.grade_level, except_id=class_id)
+        _check_class_name(
+            session,
+            data.name,
+            school_class.grade_level,
+            except_id=class_id,
+            school_year_id=year_id,
+        )
         school_class.name = data.name
     if "homeroom_teacher_id" in fields:
         if data.homeroom_teacher_id is not None:
-            _check_homeroom(session, data.homeroom_teacher_id, for_class=class_id)
+            _check_homeroom(
+                session, data.homeroom_teacher_id, for_class=class_id, school_year_id=year_id
+            )
         details["homeroom_teacher_id"] = [
             school_class.homeroom_teacher_id,
             data.homeroom_teacher_id,
@@ -423,6 +634,8 @@ def copy_assignments(
         raise AdminNotFound("Không có lớp nguồn này.")
     if source.grade_level != target.grade_level:
         raise AdminInvalid("Chỉ sao chép được từ lớp cùng khối.")
+    if source.school_year_id != target.school_year_id:
+        raise AdminInvalid("Chỉ sao chép được từ lớp cùng khối trong cùng năm học.")
     assigned = set(
         session.scalars(
             select(TeachingAssignment.subject_id).where(TeachingAssignment.class_id == class_id)
