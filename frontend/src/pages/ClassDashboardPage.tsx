@@ -142,6 +142,11 @@ function DashboardContent({ dashboard, canRecord }: { dashboard: Dashboard; canR
         <Panel
           id="ren-luyen"
           title="Rèn luyện"
+          actions={
+            <Link to={`/classes/${dashboard.class_info.id}/conduct`} className="link text-sm">
+              {canRecord ? 'Sửa rèn luyện' : 'Xem từng học sinh'}
+            </Link>
+          }
           description={
             dashboard.conduct_derived_count > 0
               ? `${dashboard.conduct_derived_count} học sinh có rèn luyện cả năm suy ra từ học kỳ II.`
@@ -189,6 +194,11 @@ function DashboardContent({ dashboard, canRecord }: { dashboard: Dashboard; canR
       <Panel
         id="nghi-theo-thang"
         title="Số buổi nghỉ theo tháng"
+        actions={
+          <Link to={`/classes/${dashboard.class_info.id}/attendance`} className="link text-sm">
+            {canRecord ? 'Điểm danh, sửa và đối chiếu' : 'Xem điểm danh từng ngày'}
+          </Link>
+        }
         description="Tổng số buổi nghỉ của cả lớp trong từng tháng của năm học (đi muộn không tính là nghỉ)."
       >
         <AbsenceChart months={dashboard.absences_by_month} label="Số buổi nghỉ của lớp theo tháng" />

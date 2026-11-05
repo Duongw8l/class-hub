@@ -22,7 +22,7 @@ export function AggregateReport({ target, report, scopeLabel }: AggregateReportP
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm text-slate-600">
-          Báo cáo {scopeLabel}
+          {target.type === 'teaching_plan' ? 'Gợi ý cho' : 'Báo cáo'} {scopeLabel}
           <span className={STATE_BADGES[state]}>{STATE_LABELS[state]}</span>
         </p>
         {report === null && (
@@ -33,7 +33,11 @@ export function AggregateReport({ target, report, scopeLabel }: AggregateReportP
             className="btn-primary"
           >
             <Icon name="sparkles" className="h-4 w-4" />
-            {generate.isPending ? 'Đang sinh…' : `Sinh báo cáo ${scopeLabel}`}
+            {generate.isPending
+              ? 'Đang sinh…'
+              : target.type === 'teaching_plan'
+                ? 'AI gợi ý điều chỉnh kế hoạch'
+                : `Sinh báo cáo ${scopeLabel}`}
           </button>
         )}
       </div>

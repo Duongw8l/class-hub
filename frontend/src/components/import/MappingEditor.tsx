@@ -26,8 +26,10 @@ export function MappingEditor({
   onApply,
   onUseTemplate,
 }: MappingEditorProps) {
+  // Cột tiết của tệp điểm danh tiết (D-121) do hệ thống tự đọc từ tiêu đề, không chọn tay.
+  const fields = preview.fields.filter((field) => !field.name.startsWith('lesson:'))
   const [mapping, setMapping] = useState<Record<string, string>>(() =>
-    Object.fromEntries(preview.fields.map((field) => [field.name, field.column ?? NONE])),
+    Object.fromEntries(fields.map((field) => [field.name, field.column ?? NONE])),
   )
   const [saveAs, setSaveAs] = useState('')
   const [headerRow, setHeaderRow] = useState('')
@@ -92,7 +94,7 @@ export function MappingEditor({
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          {preview.fields.map((field) => (
+          {fields.map((field) => (
             <label key={field.name} className="block text-sm font-medium text-slate-700">
               {field.label}
               {field.required && <span className="text-red-600"> *</span>}

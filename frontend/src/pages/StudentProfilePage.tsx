@@ -168,7 +168,11 @@ function FullProfile({ profile, canRecord }: { profile: StudentProfileFull; canR
         <StatCard
           label="Số buổi nghỉ"
           value={attendance.absent_total}
-          hint={`Có phép ${attendance.excused}, không phép ${attendance.unexcused}, đi muộn ${attendance.late}`}
+          hint={`Có phép ${attendance.excused}, không phép ${attendance.unexcused}, đi muộn ${attendance.late}${
+            attendance.school_duty > 0
+              ? `; được trường cử đi ${attendance.school_duty} (không tính)`
+              : ''
+          }`}
         />
         {eligibleText !== null ? (
           <StatCard

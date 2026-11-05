@@ -52,18 +52,18 @@ export function HomeroomClasses({ classes }: { classes: ClassRef[] }) {
                 Dashboard lớp
               </Link>
               <Link
-                to={`/classes/${item.id}/import?kind=attendance`}
-                aria-label={`Nhập điểm danh lớp ${item.name}`}
+                to={`/classes/${item.id}/attendance`}
+                aria-label={`Điểm danh lớp ${item.name}`}
                 className="btn-secondary btn-sm"
               >
-                Nhập điểm danh
+                Điểm danh
               </Link>
               <Link
-                to={`/classes/${item.id}/import?kind=conduct`}
-                aria-label={`Nhập rèn luyện lớp ${item.name}`}
+                to={`/classes/${item.id}/conduct`}
+                aria-label={`Rèn luyện lớp ${item.name}`}
                 className="btn-secondary btn-sm"
               >
-                Nhập rèn luyện
+                Rèn luyện
               </Link>
             </span>
           </li>

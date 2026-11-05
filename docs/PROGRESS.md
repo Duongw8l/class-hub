@@ -652,3 +652,71 @@ Làm theo yêu cầu "BGH, GVCN, giáo viên nhập điểm xem lại được c
 
 - Trang Khối (BGH), mục "Học kỳ I so với học kỳ II": có đủ 17 môn (trước chỉ 5 môn chung), môn lựa chọn chỉ so các lớp học môn đó, môn nhận xét so số học sinh Chưa đạt.
 - `pytest` analytics, reports, assistant (619 qua); `tsc -b`, `eslint` qua; API thật trên DB dev: khối 10 trả 17 môn. Trình duyệt thật: **chưa kiểm**.
+
+## Biểu đồ tỉ lệ cho BGH ở trang Khối (D-117)
+
+- Trang Khối: hàng thẻ tỉ lệ toàn khối; biểu đồ kết quả học tập có nút Tỉ lệ % / Số học sinh; mục mới "Tỉ lệ học sinh cần quan tâm theo lớp" (biểu đồ + bảng tô đậm), "Kết quả rèn luyện theo lớp", "Tỉ lệ đủ điều kiện lên lớp" (cả năm).
+- Mới: `frontend/src/components/grade/GradeInsights.tsx`; `ClassStackChart` trong `ClassLevelsChart.tsx`; `ClassOverviewOut.promotion`; test `test_grade_overview_adds_promotion_counts_for_the_whole_year_only`.
+- `pytest` analytics, assistant, reports (620 qua); `ruff`, `tsc -b`, `eslint` qua; API thật trên DB dev trả `promotion` khi xem cả năm. Trình duyệt thật: **chưa kiểm**.
+
+## Học sinh cần hỗ trợ cho GVBM (D-118)
+
+- Trang mới **Học sinh cần hỗ trợ** (`/support`, menu "Giảng dạy"); panel trên trang Bảng điểm; cột "Cần hỗ trợ" ở trang chủ; loại "Gợi ý điều chỉnh kế hoạch dạy học" (AI, bản nháp) ở trang Nhận xét & báo cáo và ngay trên trang mới.
+- Mới: `app/analytics/support.py`, `GET /classes/{id}/subjects/{sid}/support`, `GET /me/support`, `ReportType.TEACHING_PLAN` + migration 18 (`b2d7f4a9c6e1`), `prompts/teaching_plan_v1.vi.md`; front-end `pages/SupportPage.tsx`, `components/support/`. Test: `tests/analytics/test_support.py` (số liệu tính tay), phân quyền 4 vai trò trong `tests/analytics/test_api.py`, `tests/reports/test_api.py`, `tests/reports/test_export.py`.
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 18) trên DB dev | Đã chạy |
+| `pytest` toàn bộ back-end (1621 qua, 1 bỏ qua cần mô hình thật) | Đã chạy, qua |
+| `ruff check` + `ruff format`, `tsc -b`, `eslint`, `vite build` | Đã chạy, qua |
+| API thật trên DB dev (`/me/support` của một GVBM Hoá: 11 lớp–môn, học kỳ II) | Đã chạy |
+| **Trình duyệt thật**: trang Học sinh cần hỗ trợ, panel Bảng điểm, trang chủ, sinh bản nháp AI | **Chưa kiểm** |
+
+## Dữ liệu rèn luyện giả lập 30 lớp
+
+- `data/samples/build_ren_luyen_30_lop.py` sinh 90 tệp (30 lớp × học kỳ I, II, cả năm) vào `data/samples/ren-luyen-30-lop/`; `load_ren_luyen_30_lop.py` nạp qua API với vai GVCN từng lớp. Không đổi mã ứng dụng hay schema.
+- Đã nạp vào DB dev (năm 2026-2027): 3.600 bản ghi, 0 lỗi; chạy lại không ghi trùng. Sau khi nạp, xét lên lớp cả năm không còn em nào "chưa đủ dữ liệu" (khối 10: 348 đủ, 52 không đủ; khối 11: 346 / 54; khối 12: 345 / 55).
+- Chưa có: điểm danh (bảng `attendance` đang trống), nên chỉ số nghỉ học trên dashboard đều là 0. Các lớp của năm 2016-2019 trong DB dev (dữ liệu thử) không được nạp.
+
+## Sửa / nhập tay rèn luyện (D-119)
+
+- Trang mới **Rèn luyện** của lớp (`/classes/:id/conduct`); lối vào từ dashboard lớp (panel Rèn luyện) và thẻ lớp chủ nhiệm ở trang chủ.
+- Mới: migration 19 (`c4e9a1f7b3d2`, bảng `conduct_changes`, hành động `view_class_conduct`, `edit_conduct`), `app/imports/conduct_manual.py`, `conduct_router.py`, `conduct_schemas.py`; `frontend/src/api/conduct.ts`, `pages/ConductPage.tsx`, `components/conduct/ConductDialog.tsx`; test `tests/imports/test_conduct_manual.py`.
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 19) trên DB dev | Đã chạy |
+| `pytest` toàn bộ back-end (1646 qua, 1 bỏ qua cần mô hình thật) | Đã chạy, qua |
+| `ruff check` + `ruff format`, `tsc -b`, `eslint`, `vite build` | Đã chạy, qua |
+| **Trình duyệt thật**: trang Rèn luyện, sửa một em, cả năm theo học kỳ II, BGH chỉ xem | **Chưa kiểm** |
+
+## Hướng dẫn cấu trúc tệp ở trang Nhập dữ liệu
+
+- Trang Nhập dữ liệu có khung "Tệp … cần có những cột nào?" cho Rèn luyện, Điểm danh, Điểm (ngay trên ô chọn tệp, thu gọn được): bảng cột (bắt buộc / tuỳ chọn, giá trị hợp lệ, tên cột khác được nhận), ví dụ, quy tắc, và nút **tải tệp mẫu .csv có sẵn mã và họ tên học sinh của lớp** (điểm: đúng số cột thường xuyên của môn; môn nhận xét: cột "Nhận xét").
+- Nội dung khớp `backend/app/imports/columns.py` và `values.py`; đã thử đọc tiêu đề của ba tệp mẫu bằng chính hàm tự khớp cột của back-end: không thiếu cột nào. Chỉ đổi front-end (`components/import/FormatGuide.tsx`, `api/imports.ts`), không có API mới.
+- `tsc -b`, `eslint`, `vite build`: qua. Trình duyệt thật: **chưa kiểm**.
+
+## Điểm danh: lý do vắng, cử đi, theo tiết, đối chiếu (D-120)
+
+- Trang mới **Điểm danh** của lớp (`/classes/:id/attendance`, GVCN sửa, BGH xem) và **Điểm danh tiết học** của lớp–môn (`/classes/:id/subjects/:sid/lessons`, GVBM ghi; GVCN, BGH xem).
+- Mới: migration 20 (`d3dfd0412041`), `app/attendance/` (router, schemas, service), `analytics/attendance.absence_level`; front-end `api/attendance.ts`, `pages/AttendancePage.tsx`, `pages/LessonsPage.tsx`, `components/attendance/`. Test: `tests/attendance/test_attendance_api.py` (29), thêm test số tính tay trong `tests/analytics/test_attendance.py`.
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 20) trên DB dev | Đã chạy |
+| `pytest` toàn bộ back-end (1684 qua, 1 bỏ qua cần mô hình thật) | Đã chạy, qua |
+| `ruff check`, `tsc -b`, `eslint`, `vite build` | Đã chạy, qua (`ruff format --check` báo 1 tệp có từ trước: `data/samples/build.py`) |
+| DB dev chưa có điểm danh (bảng trống): trang hiện "chưa có ngày nào" cho tới khi GVCN điểm danh hoặc nhập tệp | Ghi chú |
+| **Trình duyệt thật**: điểm danh ngày, cử đi, theo tiết, đối chiếu | **Chưa kiểm** |
+
+## Nhập điểm danh tiết từ tệp Excel dạng lưới (D-121)
+
+- Trang Nhập dữ liệu: loại mới **Điểm danh tiết** cho GVBM (chọn môn; tệp lưới mỗi em một dòng, mỗi tiết một cột "05/10 Tiết 2", ô trống / P / K / M), hướng dẫn và tệp mẫu; nút "Nhập từ tệp Excel" trên trang Điểm danh tiết học.
+- Mới: migration 21 (`e7b2c9d4f1a6`), `app/imports/lessons.py`; test `tests/imports/test_lesson_import.py` (29).
+
+| Mục | Trạng thái |
+| --- | --- |
+| `alembic upgrade head` (migration 21) trên DB dev | Đã chạy |
+| `pytest` toàn bộ back-end (1713 qua, 1 bỏ qua cần mô hình thật) | Đã chạy, qua |
+| `ruff check` + `ruff format`, `tsc -b`, `eslint`, `vite build` | Đã chạy, qua |
+| **Trình duyệt thật**: tải tệp mẫu, điền, nhập, xem sổ theo tiết | **Chưa kiểm** |

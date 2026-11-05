@@ -21,10 +21,16 @@ export function useBreadcrumbs(data: Assignments | undefined): Crumb[] {
   }
 
   const at = (pattern: string) => matchPath({ path: pattern, end: true }, pathname)
-  let m = at('/classes/:classId/subjects/:subjectId')
+  let m = at('/classes/:classId/subjects/:subjectId/lessons')
+  if (m) return [home, classCrumb(m.params.classId), { label: 'Điểm danh tiết học' }]
+  m = at('/classes/:classId/attendance')
+  if (m) return [home, classCrumb(m.params.classId), { label: 'Điểm danh' }]
+  m = at('/classes/:classId/subjects/:subjectId')
   if (m) return [home, classCrumb(m.params.classId), { label: 'Bảng điểm' }]
   m = at('/classes/:classId/students/:studentId')
   if (m) return [home, classCrumb(m.params.classId), { label: 'Hồ sơ học sinh' }]
+  m = at('/classes/:classId/conduct')
+  if (m) return [home, classCrumb(m.params.classId), { label: 'Rèn luyện' }]
   m = at('/classes/:classId/import')
   if (m) return [home, classCrumb(m.params.classId), { label: 'Nhập dữ liệu' }]
   m = at('/classes/:classId')
@@ -32,6 +38,7 @@ export function useBreadcrumbs(data: Assignments | undefined): Crumb[] {
   m = at('/grades/:level')
   if (m) return [home, { label: `Khối ${m.params.level}` }]
   if (at('/assistant')) return [home, { label: 'Trợ lý AI' }]
+  if (at('/support')) return [home, { label: 'Học sinh cần hỗ trợ' }]
   if (at('/reports')) return [home, { label: 'Nhận xét & báo cáo' }]
   if (at('/admin/regulations')) return [home, { label: 'Quản trị' }, { label: 'Văn bản quy định' }]
   if (at('/admin/users')) return [home, { label: 'Quản trị' }, { label: 'Tài khoản' }]

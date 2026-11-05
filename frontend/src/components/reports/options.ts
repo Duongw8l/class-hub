@@ -5,6 +5,7 @@ export const TYPE_LABELS: Record<ReportType, string> = {
   school_record: 'Nhận xét học bạ',
   contact_slip: 'Phiếu liên lạc',
   report: 'Báo cáo lớp / khối',
+  teaching_plan: 'Gợi ý điều chỉnh kế hoạch dạy học',
 }
 
 export const TYPE_HINTS: Record<ReportType, string> = {
@@ -12,6 +13,8 @@ export const TYPE_HINTS: Record<ReportType, string> = {
   school_record: 'Nhận xét chung cuối học kỳ của từng học sinh, do giáo viên chủ nhiệm viết.',
   contact_slip: 'Phiếu gửi phụ huynh: bảng điểm, chuyên cần và nhận xét. Xuất PDF sau khi duyệt.',
   report: 'Báo cáo tổng hợp số liệu của một lớp hoặc một khối, không nêu tên học sinh.',
+  teaching_plan:
+    'Gợi ý điều chỉnh kế hoạch dạy học một lớp–môn từ số liệu điểm, không nêu tên học sinh.',
 }
 
 // Mã vi phạm của bộ kiểm tự động (backend/app/reports/checks.py) diễn đạt cho giáo viên.

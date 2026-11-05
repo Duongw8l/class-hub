@@ -61,7 +61,7 @@ export interface Dashboard {
   absent_over_limit_students: number
   subjects: SubjectStat[]
   attention: Attention[]
-  promotion: { eligible: number; not_eligible: number; unknown: number } | null
+  promotion: PromotionCounts | null
   absences_by_month: MonthAbsence[]
   absence_limits: AbsenceLimits
   thresholds: Thresholds
@@ -122,6 +122,14 @@ export interface ClassOverview {
   absent_notice_students: number
   absent_over_limit_students: number
   below_fail_students: number
+  // Chỉ khi xem cả năm (null ở học kỳ I, II).
+  promotion: PromotionCounts | null
+}
+
+export interface PromotionCounts {
+  eligible: number
+  not_eligible: number
+  unknown: number
 }
 
 export interface GradeOverview {
@@ -198,6 +206,7 @@ export interface StudentProfileFull extends ProfileBase {
     unexcused: number
     late: number
     absent_total: number
+    school_duty: number // vắng do nhà trường cử đi, không tính buổi nghỉ (D-120)
     limits: AbsenceLimits
     by_month: MonthAbsence[]
   }
@@ -256,4 +265,77 @@ export function fetchStudentProfile(
     `/classes/${classId}/students/${studentId}/profile?semester=${period}`,
     signal,
   )
+}
+
+// --- Học sinh cần hỗ trợ trong một môn (GVBM, D-118) ---
+// Chỉ dựa trên điểm của chính môn đó; mọi lý do, mức và thống kê do back-end tính.
+
+export type SupportLevel = 'high' | 'medium' | 'low'
+
+export interface SupportReason {
+  code: string
+  level: SupportLevel
+  message: string
+}
+
+export interface SupportStudent {
+  student_id: number
+  student_code: string
+  full_name: string
+  level: SupportLevel
+  reasons: SupportReason[]
+  average: number | null
+  average_semester1: number | null
+  comment_result: CommentResult | null
+}
+
+export interface ComponentStat {
+  count: number
+  mean: number | null
+  below_pass: number
+}
+
+export interface SubjectSupport {
+  class_info: ClassRef
+  subject: SubjectScores['subject']
+  semester: number
+  thresholds: Thresholds
+  student_count: number
+  mean: number | null
+  distribution: SubjectScores['distribution']
+  counts: Record<SupportLevel, number>
+  students: SupportStudent[]
+  advanced_students: { student_id: number; student_code: string; full_name: string; average: number | null }[]
+  stats: {
+    regular: ComponentStat
+    midterm: ComponentStat
+    final: ComponentStat
+    support_group: number
+    advanced_group: number
+    previous_mean: number | null
+    comment_pass: number
+    comment_fail: number
+    comment_missing: number
+  }
+}
+
+export interface MySupport {
+  school_year_id: number | null
+  items: SubjectSupport[]
+}
+
+// `semester` null: học kỳ II nếu môn đã có điểm học kỳ II, không thì học kỳ I (back-end chọn).
+export function fetchSubjectSupport(
+  classId: number,
+  subjectId: number,
+  semester: 1 | 2 | null,
+  signal?: AbortSignal,
+) {
+  const query = semester === null ? '' : `?semester=${semester}`
+  return apiGet<SubjectSupport>(`/classes/${classId}/subjects/${subjectId}/support${query}`, signal)
+}
+
+export function fetchMySupport(semester: 1 | 2 | null, yearId: number | null, signal?: AbortSignal) {
+  const query = semester === null ? '/me/support' : `/me/support?semester=${semester}`
+  return apiGet<MySupport>(withYear(query, yearId), signal)
 }

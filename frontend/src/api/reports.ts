@@ -2,7 +2,12 @@ import { apiDownload, apiGet, apiPost, apiPut } from './client'
 import type { Period } from './analytics'
 
 // Khớp schema của back-end (backend/app/reports/schemas.py).
-export type ReportType = 'subject_comment' | 'school_record' | 'contact_slip' | 'report'
+export type ReportType =
+  | 'subject_comment'
+  | 'school_record'
+  | 'contact_slip'
+  | 'report'
+  | 'teaching_plan'
 export type ReportScope = 'student' | 'class' | 'grade'
 export type ReportStatus = 'draft' | 'approved'
 export type JobStatus = 'running' | 'done' | 'stopped'

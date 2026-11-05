@@ -22,6 +22,9 @@ from app.imports import hooks, mappings, service
 from app.imports.parsing import MAX_UPLOAD_BYTES, ImportFileError
 from app.imports.schemas import ConfirmOut, MappingTemplateOut, PreviewOut
 
+# Loại nhập gắn với một môn: chỉ GVBM được phân công lớp–môn đó.
+BY_SUBJECT = (ImportKind.ASSESSMENTS, ImportKind.LESSONS)
+
 router = APIRouter(tags=["imports"])
 
 
@@ -71,6 +74,8 @@ def import_preview(
     # Kiểm hình dạng yêu cầu (tham số bắt buộc theo loại) rồi mới tới quyền; không lộ dữ liệu.
     if kind is ImportKind.ASSESSMENTS and (subject_id is None or semester is None):
         raise _bad_request("Nhập điểm cần subject_id (môn) và semester (học kỳ 1 hoặc 2).")
+    if kind is ImportKind.LESSONS and subject_id is None:
+        raise _bad_request("Nhập điểm danh tiết cần subject_id (môn).")
     if kind is ImportKind.CONDUCT and period is None:
         raise _bad_request("Nhập rèn luyện cần period (hk1, hk2 hoặc year).")
 
@@ -84,11 +89,11 @@ def import_preview(
             session,
             user,
             class_id=class_id,
-            subject_id=subject_id if kind is ImportKind.ASSESSMENTS else None,
+            subject_id=subject_id if kind in BY_SUBJECT else None,
         )
 
     subject = None
-    if kind is ImportKind.ASSESSMENTS:
+    if kind in BY_SUBJECT:
         subject = next(
             (s for s in analytics_repo.class_subjects(session, class_id) if s.id == subject_id),
             None,

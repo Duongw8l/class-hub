@@ -19,6 +19,8 @@ import { useSelectedYear } from '../years/context'
 const PERIODS = ['1', '2', 'year'] as const
 // Nhận xét môn chỉ viết cho từng học kỳ (back-end cũng từ chối cả năm).
 const SUBJECT_PERIODS = ['1', '2'] as const
+// Loại gắn với một lớp–môn của GVBM: chọn "lớp và môn", chỉ học kỳ I, II.
+const BY_SUBJECT: ReadonlySet<ReportType> = new Set<ReportType>(['subject_comment', 'teaching_plan'])
 
 // Nhận xét và báo cáo do AI viết (DESIGN mục 6.5, FLOWS luồng 5). Mọi bản sinh ra là bản nháp cho tới
 // khi giáo viên bấm Duyệt; chỉ bản đã duyệt mới xuất được PDF. Quyền do back-end quyết định: trang
@@ -45,7 +47,7 @@ function typeOptionsOf(data: Assignments): ReportType[] {
   if (data.user.role === 'principal') return ['report']
   if (data.user.role !== 'teacher') return []
   return [
-    ...(data.teaching.length > 0 ? (['subject_comment'] as const) : []),
+    ...(data.teaching.length > 0 ? (['subject_comment', 'teaching_plan'] as const) : []),
     ...(data.homeroom_classes.length > 0
       ? (['school_record', 'contact_slip', 'report'] as const)
       : []),
@@ -56,7 +58,7 @@ function Workspace({ data }: { data: Assignments }) {
   const [params, setParams] = useSearchParams()
   const options = typeOptionsOf(data)
   const type = options.find((option) => option === params.get('type')) ?? options[0]
-  const [period, setPeriod] = usePeriod(type === 'subject_comment' ? SUBJECT_PERIODS : PERIODS, '1')
+  const [period, setPeriod] = usePeriod(BY_SUBJECT.has(type) ? SUBJECT_PERIODS : PERIODS, '1')
 
   function setParam(changes: Record<string, string | null>) {
     setParams(
@@ -147,7 +149,7 @@ function Toolbar({
         <p className="text-sm text-slate-500">{TYPE_HINTS[type]}</p>
         <PeriodSelect
           value={period}
-          options={type === 'subject_comment' ? SUBJECT_PERIODS : PERIODS}
+          options={BY_SUBJECT.has(type) ? SUBJECT_PERIODS : PERIODS}
           onChange={setPeriod}
         />
       </div>
@@ -161,18 +163,20 @@ interface Choice {
   classId: number
   className: string
   subjectId?: number
+  subjectName?: string
 }
 
 function TeacherWorkspace({ data, ...props }: WorkspaceProps & { data: Assignments }) {
   const { type, period, params, setParam, initialStudentId } = props
   const choices: Choice[] =
-    type === 'subject_comment'
+    BY_SUBJECT.has(type)
       ? data.teaching.map((item) => ({
           value: `${item.class_id}:${item.subject_id}`,
           label: `Lớp ${item.class_name} · ${item.subject_name}`,
           classId: item.class_id,
           className: item.class_name,
           subjectId: item.subject_id,
+          subjectName: item.subject_name,
         }))
       : data.homeroom_classes.map((item) => ({
           value: String(item.id),
@@ -181,7 +185,7 @@ function TeacherWorkspace({ data, ...props }: WorkspaceProps & { data: Assignmen
           className: item.name,
         }))
   const wanted =
-    type === 'subject_comment'
+    BY_SUBJECT.has(type)
       ? `${params.get('class')}:${params.get('subject')}`
       : params.get('class')
   const choice = choices.find((item) => item.value === wanted) ?? choices[0]
@@ -197,7 +201,7 @@ function TeacherWorkspace({ data, ...props }: WorkspaceProps & { data: Assignmen
       <Toolbar {...props}>
         <div>
           <label htmlFor="pham-vi" className="label">
-            {type === 'subject_comment' ? 'Lớp và môn' : 'Lớp'}
+            {BY_SUBJECT.has(type) ? 'Lớp và môn' : 'Lớp'}
           </label>
           <select
             id="pham-vi"
@@ -224,7 +228,11 @@ function TeacherWorkspace({ data, ...props }: WorkspaceProps & { data: Assignmen
       <ReportBody
         key={`${type}-${choice.value}-${period}`}
         target={target}
-        scopeLabel={`lớp ${choice.className}`}
+        scopeLabel={
+          choice.subjectId === undefined
+            ? `lớp ${choice.className}`
+            : `lớp ${choice.className}, môn ${choice.subjectName ?? ''}`
+        }
         initialStudentId={initialStudentId}
       />
     </>
@@ -312,7 +320,7 @@ function ReportBody({ target, scopeLabel, initialStudentId }: ReportBodyProps) {
     <Panel id="ket-qua-nhan-xet" title={TYPE_LABELS[target.type]} description={scopeLabel}>
       <QueryState query={list}>
         {(result) =>
-          target.type === 'report' ? (
+          target.type === 'report' || target.type === 'teaching_plan' ? (
             <AggregateReport
               target={target}
               report={result.items[0]?.report ?? null}

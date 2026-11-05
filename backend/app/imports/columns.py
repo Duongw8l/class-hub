@@ -260,6 +260,9 @@ def fields_for(
         return CONDUCT_FIELDS
     if kind is ImportKind.ROSTER:
         return ROSTER_FIELDS
+    if kind is ImportKind.LESSONS:
+        # Cột tiết là cột động (mỗi tiết một cột), đọc ở app/imports/lessons.py.
+        return [STUDENT_CODE, FULL_NAME]
     if is_comment_subject:
         return comment_subject_fields(allow_partial=allow_partial)
     return score_fields(tx_required, allow_partial=allow_partial)

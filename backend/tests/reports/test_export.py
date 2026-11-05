@@ -340,6 +340,38 @@ def test_class_and_grade_reports_are_signed_by_who_approved_them(
     assert export_of(api_client, auth_headers(GVCN_11A2), grade_report).status_code == 403
 
 
+def test_a_teaching_plan_has_its_own_title_class_subject_and_teacher_signer(
+    api_client: TestClient,
+    auth_headers: Headers,
+    use_llm: UseLlm,
+    class_id_of: Callable[[str], int],
+    subject_id_of: Callable[[str], int],
+) -> None:
+    use_llm(FakeWriter())
+    plan = create_and_approve(
+        api_client,
+        auth_headers(GVBM_VAN_11),
+        {
+            "type": "teaching_plan",
+            "semester": "1",
+            "class_id": class_id_of("11A2"),
+            "subject_id": subject_id_of("Ngữ văn"),
+        },
+        auth_headers(GVBM_VAN_11),
+    )
+
+    response = api_client.get(f"{REPORTS}/{plan}/export", headers=auth_headers(GVBM_VAN_11))
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="goi-y-ke-hoach-day-hoc-11A2-hk1.pdf"'
+    )
+    content = text_of(response.content)
+    assert "GỢI Ý ĐIỀU CHỈNH KẾ HOẠCH DẠY HỌC" in content and "Môn học: Ngữ văn" in content
+    assert "Giáo viên bộ môn" in content
+    # GVCN của lớp không viết bản này nên cũng không xuất được.
+    assert export_of(api_client, auth_headers(GVCN_11A2), plan).status_code == 403
+
+
 # --- Phông và định dạng -----------------------------------------------------------------------
 
 

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.analytics.router import router as analytics_router
 from app.assistant.router import router as assistant_router
+from app.attendance.router import router as attendance_router
 from app.auth.admin_router import router as admin_users_router
 from app.auth.router import router as auth_router
 from app.classes.admin_router import router as admin_classes_router
@@ -10,6 +11,7 @@ from app.classes.years import SchoolYearNotFound, school_year_not_found_handler
 from app.core.authorize import AuthorizationError, authorization_error_handler
 from app.core.config import get_settings
 from app.core.health import router as health_router
+from app.imports.conduct_router import router as conduct_router
 from app.imports.manual_router import router as manual_scores_router
 from app.imports.router import router as imports_router
 from app.rag.router import router as rag_router
@@ -42,6 +44,8 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router, prefix=API_PREFIX)
     app.include_router(imports_router, prefix=API_PREFIX)
     app.include_router(manual_scores_router, prefix=API_PREFIX)
+    app.include_router(conduct_router, prefix=API_PREFIX)
+    app.include_router(attendance_router, prefix=API_PREFIX)
     app.include_router(warning_router, prefix=API_PREFIX)
     app.include_router(rag_router, prefix=API_PREFIX)
     app.include_router(assistant_router, prefix=API_PREFIX)

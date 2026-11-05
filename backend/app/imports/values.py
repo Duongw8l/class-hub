@@ -91,6 +91,12 @@ _ATTENDANCE: dict[str, AttendanceStatus] = {
     "dimuon": AttendanceStatus.LATE,
     "late": AttendanceStatus.LATE,
     "m": AttendanceStatus.LATE,
+    # Vắng do nhà trường cử đi (D-120): chỉ GVCN nhập tệp điểm danh nên chỉ GVCN ghi được loại này.
+    "vangdonhatruongcudi": AttendanceStatus.SCHOOL_DUTY,
+    "duoccudi": AttendanceStatus.SCHOOL_DUTY,
+    "nhatruongcudi": AttendanceStatus.SCHOOL_DUTY,
+    "cudi": AttendanceStatus.SCHOOL_DUTY,
+    "schoolduty": AttendanceStatus.SCHOOL_DUTY,
 }
 
 

@@ -12,6 +12,7 @@ import type {
 } from '../../api/imports'
 import { useAuth } from '../../auth/context'
 import { FilePicker } from './FilePicker'
+import { FormatGuide } from './FormatGuide'
 import { KIND_LABELS, PERIOD_LABELS } from './format'
 import { MappingEditor } from './MappingEditor'
 import type { MappingChoice } from './MappingEditor'
@@ -112,11 +113,12 @@ export function ImportWizard({
 
   function buildRequest(picked: File, current: Settings): PreviewRequest {
     const assessments = current.kind === 'assessments'
+    const bySubject = assessments || current.kind === 'lessons'
     return {
       classId,
       kind: current.kind,
       file: picked,
-      subjectId: assessments ? (current.subjectId ?? undefined) : undefined,
+      subjectId: bySubject ? (current.subjectId ?? undefined) : undefined,
       semester: assessments ? current.semester : undefined,
       period: current.kind === 'conduct' ? current.period : undefined,
       allowPartial: assessments && current.allowPartial,
@@ -244,6 +246,24 @@ export function ImportWizard({
           ))}
         </div>
 
+        {settings.kind === 'lessons' && (
+          <label className="block text-sm font-medium text-slate-700 sm:max-w-xs">
+            Môn
+            <select
+              value={settings.subjectId ?? ''}
+              disabled={busy}
+              onChange={(event) => changeSettings({ subjectId: Number(event.target.value) })}
+              className={selectClass()}
+            >
+              {subjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {settings.kind === 'assessments' && (
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm font-medium text-slate-700">
@@ -317,6 +337,16 @@ export function ImportWizard({
             xem trước chỉ nêu dòng nào mới, dòng nào cập nhật.
           </p>
         )}
+
+        <FormatGuide
+          kind={settings.kind}
+          classId={classId}
+          className={className}
+          subjectId={settings.subjectId}
+          subjectName={subjects.find((s) => s.id === settings.subjectId)?.name ?? null}
+          semester={settings.semester}
+          period={settings.period}
+        />
 
         <FilePicker file={file} onPick={pickFile} disabled={busy} />
 

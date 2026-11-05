@@ -1,6 +1,7 @@
 """Tổng hợp số buổi nghỉ (D-028).
 
-Mỗi dòng nghỉ có phép hoặc không phép là 1 buổi; đi muộn không tính là nghỉ.
+Mỗi dòng nghỉ có phép hoặc không phép là 1 buổi; đi muộn không tính là nghỉ. Vắng do nhà trường cử
+đi (thi học sinh giỏi, thi đấu…) được đếm riêng và KHÔNG tính buổi nghỉ (D-120).
 """
 
 from collections import defaultdict
@@ -18,6 +19,7 @@ class AttendanceSummary:
     unexcused: int  # nghỉ không phép
     late: int  # đi muộn (không tính là nghỉ)
     absent_total: int  # nghỉ có phép + không phép
+    school_duty: int = 0  # vắng do nhà trường cử đi (không tính là nghỉ, D-120)
 
 
 @dataclass(frozen=True)
@@ -28,12 +30,14 @@ class PeriodAbsence:
     absent_total: int
 
 
-def make_summary(excused: int, unexcused: int, late: int) -> AttendanceSummary:
-    return AttendanceSummary(excused, unexcused, late, excused + unexcused)
+def make_summary(
+    excused: int, unexcused: int, late: int, school_duty: int = 0
+) -> AttendanceSummary:
+    return AttendanceSummary(excused, unexcused, late, excused + unexcused, school_duty)
 
 
 def attendance_summary(rows: Iterable[tuple[date, AttendanceStatus]]) -> AttendanceSummary:
-    excused = unexcused = late = 0
+    excused = unexcused = late = school_duty = 0
     for _day, status in rows:
         if status is AttendanceStatus.ABSENT_EXCUSED:
             excused += 1
@@ -41,7 +45,9 @@ def attendance_summary(rows: Iterable[tuple[date, AttendanceStatus]]) -> Attenda
             unexcused += 1
         elif status is AttendanceStatus.LATE:
             late += 1
-    return make_summary(excused, unexcused, late)
+        elif status is AttendanceStatus.SCHOOL_DUTY:
+            school_duty += 1
+    return make_summary(excused, unexcused, late, school_duty)
 
 
 def _bucket(day: date, granularity: Literal["week", "month"]) -> str:
@@ -86,3 +92,20 @@ def absences_by_month_in_range(
     present = {item.period: item for item in absences_by_period(rows, "month")}
     months = sorted({*_months_between(first, last), *present})
     return [present.get(month, PeriodAbsence(month, 0, 0, 0)) for month in months]
+
+
+AbsenceLevel = Literal["over", "high", "notice"]
+
+
+def absence_level(
+    absent_total: int, *, notice: int, high: int, maximum: int
+) -> AbsenceLevel | None:
+    """Mức của số buổi nghỉ cả năm so với ba ngưỡng trong `settings` (D-120, cùng mốc với cảnh báo
+    sớm D-071): quá mức tối đa, từ mức cao, từ mức nhắc; dưới mức nhắc thì None."""
+    if absent_total > maximum:
+        return "over"
+    if absent_total >= high:
+        return "high"
+    if absent_total >= notice:
+        return "notice"
+    return None

@@ -50,6 +50,12 @@ export function AppLayout() {
       })),
     })
   }
+  if (data && data.teaching.length > 0) {
+    groups.push({
+      title: 'Giảng dạy',
+      items: [{ to: '/support', label: 'Học sinh cần hỗ trợ', icon: 'bell' as const }],
+    })
+  }
   if (data && data.grades.length > 0) {
     groups.push({
       title: 'Khối',

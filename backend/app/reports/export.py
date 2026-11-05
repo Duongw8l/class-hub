@@ -33,6 +33,7 @@ SLUGS = {
     ReportType.SCHOOL_RECORD: "nhan-xet-hoc-ba",
     ReportType.CONTACT_SLIP: "phieu-lien-lac",
     ReportType.REPORT: "bao-cao",
+    ReportType.TEACHING_PLAN: "goi-y-ke-hoach-day-hoc",
 }
 
 
@@ -61,7 +62,7 @@ def _signer(session: Session, report: Report) -> tuple[str, str]:
     name = "" if approver is None else approver.full_name
     if approver is not None and approver.role is UserRole.PRINCIPAL:
         return "Ban giám hiệu", name
-    if report.type is ReportType.SUBJECT_COMMENT:
+    if report.type in (ReportType.SUBJECT_COMMENT, ReportType.TEACHING_PLAN):
         return "Giáo viên bộ môn", name
     return "Giáo viên chủ nhiệm", name
 
@@ -119,6 +120,14 @@ def build_document(session: Session, report: Report) -> pdf.PdfDocument:
             **common,
         )
     assert info is not None
+    if report.type is ReportType.TEACHING_PLAN:
+        facts = service.facts_for(session, resolved)
+        return pdf.PdfDocument(
+            title="GỢI Ý ĐIỀU CHỈNH KẾ HOẠCH DẠY HỌC",
+            subtitle=f"{period} · Lớp {info.name}",
+            info=[("Lớp", info.name), ("Môn học", str(facts["subject"]))],
+            **common,
+        )
     if report.scope is ReportScope.CLASS:
         return pdf.PdfDocument(
             title=f"BÁO CÁO LỚP {info.name}",

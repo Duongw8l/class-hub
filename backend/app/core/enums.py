@@ -33,10 +33,32 @@ class AttendanceStatus(StrEnum):
     ABSENT_EXCUSED = "absent_excused"
     ABSENT_UNEXCUSED = "absent_unexcused"
     LATE = "late"
+    # Vắng do nhà trường cử đi (thi học sinh giỏi, thi đấu, hoạt động của trường): coi như tham gia
+    # học tập, KHÔNG tính buổi nghỉ (D-120). Chỉ GVCN ghi được.
+    SCHOOL_DUTY = "school_duty"
 
 
-# Hai trạng thái tính là 1 buổi nghỉ (D-028). "late" và "present" không tính.
+class AbsenceReason(StrEnum):
+    """Lý do vắng chi tiết (D-120), kèm ghi chú tự do. Không đổi cách tính buổi nghỉ."""
+
+    SICK = "sick"  # ốm, khám bệnh
+    FAMILY = "family"  # việc gia đình
+    COMPETITION = "competition"  # thi học sinh giỏi, thi đấu
+    SCHOOL_ACTIVITY = "school_activity"  # hoạt động do trường cử
+    OTHER = "other"
+
+
+# Hai trạng thái tính là 1 buổi nghỉ (D-028). "late", "present", "school_duty" không tính.
 ABSENT_STATUSES = (AttendanceStatus.ABSENT_EXCUSED, AttendanceStatus.ABSENT_UNEXCUSED)
+
+
+class ConductChangeReason(StrEnum):
+    """Lý do sửa rèn luyện bằng tay (D-119). Nhãn tiếng Việt ở app/core/labels.py."""
+
+    REVIEW = "review"  # xét lại / đánh giá lại
+    CORRECTION = "correction"  # nhập sai
+    SUPPLEMENT = "supplement"  # bổ sung kết quả còn thiếu
+    OTHER = "other"  # khác (bắt buộc ghi chú)
 
 
 class ConductPeriod(StrEnum):
@@ -90,6 +112,7 @@ class ReportType(StrEnum):
     SCHOOL_RECORD = "school_record"  # học bạ
     CONTACT_SLIP = "contact_slip"  # phiếu liên lạc
     REPORT = "report"  # báo cáo
+    TEACHING_PLAN = "teaching_plan"  # gợi ý điều chỉnh kế hoạch dạy học một lớp–môn (D-118)
 
 
 class ReportStatus(StrEnum):
@@ -134,6 +157,12 @@ class AuditAction(StrEnum):
     EXPORT_REPORT = "export_report"  # xuất PDF bản đã duyệt
     VIEW_CLASS_REPORTS = "view_class_reports"  # danh sách bản nháp kèm học sinh của lớp
     EDIT_SCORES = "edit_scores"  # GVBM sửa / nhập tay điểm của một học sinh (D-115)
+    VIEW_CLASS_CONDUCT = "view_class_conduct"  # bảng rèn luyện cả lớp (D-119)
+    EDIT_CONDUCT = "edit_conduct"  # GVCN sửa / nhập tay rèn luyện (D-119)
+    VIEW_ATTENDANCE = "view_attendance"  # bảng điểm danh ngày của lớp (D-120)
+    EDIT_ATTENDANCE = "edit_attendance"  # GVCN điểm danh / sửa điểm danh ngày (D-120)
+    VIEW_LESSONS = "view_lessons"  # sổ điểm danh theo tiết (D-120)
+    EDIT_LESSON = "edit_lesson"  # GVBM điểm danh một tiết (D-120)
 
 
 class ScoreChangeReason(StrEnum):
@@ -150,6 +179,7 @@ class ImportKind(StrEnum):
     ATTENDANCE = "attendance"  # điểm danh
     CONDUCT = "conduct"  # rèn luyện
     ROSTER = "roster"  # danh sách học sinh của một lớp (chỉ Admin nhập, D-100)
+    LESSONS = "lessons"  # sổ điểm danh theo tiết của GVBM, tệp dạng lưới (D-121)
 
 
 class ImportStatus(StrEnum):

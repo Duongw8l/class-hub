@@ -7,8 +7,9 @@ import { PeriodSelect } from '../components/PeriodSelect'
 import { QueryState } from '../components/QueryState'
 import { StudentScoresDialog } from '../components/scores/StudentScoresDialog'
 import { StatCard, StatGrid } from '../components/StatCard'
+import { SupportStudents } from '../components/support/SupportParts'
 import { useAssignments } from '../hooks/useAssignments'
-import { useSubjectScores, usePeriod } from '../hooks/useAnalytics'
+import { useSubjectScores, useSubjectSupport, usePeriod } from '../hooks/useAnalytics'
 import { formatScore } from '../lib/format'
 import { COMMENT_LABELS } from '../lib/labels'
 
@@ -481,6 +482,41 @@ function ScoresContent({ scores, canImport }: { scores: SubjectScores; canImport
 
 // Bảng điểm một môn của lớp (GVBM đúng môn, GVCN, BGH): lưới đầu điểm, ĐTB do server tính, ô thiếu
 // đầu điểm được tô nổi.
+// Học sinh cần hỗ trợ trong môn này (D-118): cùng học kỳ với bảng điểm. GVBM của lớp–môn có thêm
+// lối tới số liệu kế hoạch dạy học và gợi ý của AI.
+function SupportPanel({
+  classId,
+  subjectId,
+  semester,
+  canPlan,
+}: {
+  classId: number
+  subjectId: number
+  semester: 1 | 2
+  canPlan: boolean
+}) {
+  const support = useSubjectSupport(classId, subjectId, semester)
+  return (
+    <Panel
+      id="hoc-sinh-can-ho-tro"
+      title="Học sinh cần hỗ trợ trong môn"
+      description="Chỉ dựa trên điểm môn này: ĐTB thấp, tụt khoảng điểm so với học kỳ I, bài giữa kỳ hoặc cuối kỳ thấp, còn thiếu đầu điểm."
+      actions={
+        canPlan && (
+          <Link
+            to={`/support?item=${classId}:${subjectId}&hk=${semester}`}
+            className="link text-sm"
+          >
+            Số liệu & AI gợi ý kế hoạch dạy học
+          </Link>
+        )
+      }
+    >
+      <QueryState query={support}>{(item) => <SupportStudents item={item} />}</QueryState>
+    </Panel>
+  )
+}
+
 export default function SubjectScoresPage() {
   const params = useParams()
   const classId = Number(params.classId)
@@ -508,6 +544,9 @@ export default function SubjectScoresPage() {
         actions={
           <>
             <PeriodSelect value={period} options={SEMESTERS} onChange={setPeriod} />
+            <Link to={`/classes/${classId}/subjects/${subjectId}/lessons`} className="link text-sm">
+              Điểm danh tiết học
+            </Link>
             {canOpenDashboard && (
               <Link
                 to={`/classes/${classId}`}
@@ -522,6 +561,12 @@ export default function SubjectScoresPage() {
       <QueryState query={scores}>
         {(result) => <ScoresContent key={result.semester} scores={result} canImport={canImport} />}
       </QueryState>
+      <SupportPanel
+        classId={classId}
+        subjectId={subjectId}
+        semester={period === '2' ? 2 : 1}
+        canPlan={canImport}
+      />
     </>
   )
 }

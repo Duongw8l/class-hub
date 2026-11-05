@@ -1,6 +1,7 @@
 """Ai được tạo, sửa, duyệt và xuất nhận xét, báo cáo (D-102). Mọi cửa đều qua `authorize()`.
 
 - `subject_comment` (học sinh): GVBM dạy đúng lớp-môn đó (`authorize_write`).
+- `teaching_plan` (lớp–môn, D-118): gợi ý điều chỉnh kế hoạch dạy học, cũng chỉ GVBM của lớp-môn đó.
 - `school_record`, `contact_slip` (học sinh): GVCN của lớp.
 - `report` của một lớp: GVCN của lớp hoặc BGH.
 - `report` của một khối: chỉ BGH.
@@ -15,6 +16,8 @@ from app.auth.models import User
 from app.core.authorize import AuthorizationError, authorize, authorize_write
 from app.core.enums import ReportScope, ReportType, UserRole
 
+# Bản gắn với một lớp–môn, do GVBM được phân công viết.
+SUBJECT_TYPES = frozenset({ReportType.SUBJECT_COMMENT, ReportType.TEACHING_PLAN})
 STUDENT_TYPES = frozenset(
     {ReportType.SUBJECT_COMMENT, ReportType.SCHOOL_RECORD, ReportType.CONTACT_SLIP}
 )
@@ -23,6 +26,8 @@ GRADE_LEVELS = (10, 11, 12)
 
 def scope_for(report_type: ReportType, *, class_id: int | None) -> ReportScope:
     """Phạm vi của một loại: nhận xét là học sinh; báo cáo là lớp nếu có lớp, ngược lại là khối."""
+    if report_type is ReportType.TEACHING_PLAN:
+        return ReportScope.CLASS
     if report_type is not ReportType.REPORT:
         return ReportScope.STUDENT
     return ReportScope.CLASS if class_id is not None else ReportScope.GRADE
@@ -38,7 +43,7 @@ def authorize_report(
     grade_level: int | None = None,
 ) -> None:
     """Cho phép hoặc ném AuthorizationError. Gọi trước khi đọc bất kỳ dữ liệu học sinh nào."""
-    if report_type is ReportType.SUBJECT_COMMENT:
+    if report_type in SUBJECT_TYPES:
         if class_id is None or subject_id is None:
             raise AuthorizationError
         authorize_write(session, user, class_id=class_id, subject_id=subject_id)

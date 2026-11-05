@@ -13,6 +13,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.analytics import repository as repo
+from app.analytics import support
 from app.analytics.attendance import AttendanceSummary, absences_by_month_in_range, make_summary
 from app.analytics.conduct import PeriodConduct, conduct_for_period, year_comment_result
 from app.analytics.config import AnalyticsConfig
@@ -45,6 +46,7 @@ from app.analytics.schemas import (
     SubjectOut,
     SubjectScoresOut,
     SubjectStatOut,
+    SubjectSupportOut,
     ThresholdsOut,
 )
 from app.analytics.scores import (
@@ -298,14 +300,7 @@ def build_dashboard(
 ) -> DashboardOut:
     results = build_class_results(session, class_info, period, config)
     notice, over = _absence_counts(results, config)
-    promotion = None
-    if period == "year":
-        statuses = [s.promotion.eligible for s in results.students if s.promotion is not None]
-        promotion = PromotionCountsOut(
-            eligible=sum(1 for e in statuses if e is True),
-            not_eligible=sum(1 for e in statuses if e is False),
-            unknown=sum(1 for e in statuses if e is None),
-        )
+    promotion = _promotion_counts(results, period)
     return DashboardOut(
         class_info=_class_ref(class_info),
         period=period,
@@ -325,6 +320,18 @@ def build_dashboard(
         absence_limits=_absence_limits(config),
         thresholds=_thresholds(config),
         alert_counts=alert_counts or AlertCountsOut(high=0, medium=0, low=0),
+    )
+
+
+def _promotion_counts(results: ClassResults, period: Period) -> PromotionCountsOut | None:
+    """Số học sinh đủ / không đủ / chưa đủ dữ liệu để lên lớp; chỉ có khi xem cả năm."""
+    if period != "year":
+        return None
+    statuses = [s.promotion.eligible for s in results.students if s.promotion is not None]
+    return PromotionCountsOut(
+        eligible=sum(1 for e in statuses if e is True),
+        not_eligible=sum(1 for e in statuses if e is False),
+        unknown=sum(1 for e in statuses if e is None),
     )
 
 
@@ -381,6 +388,7 @@ def build_grade_overview(
                 below_fail_students=sum(
                     1 for s in results.students if s.learning.below_fail_subjects
                 ),
+                promotion=_promotion_counts(results, period),
             )
         )
 
@@ -542,6 +550,37 @@ def build_subject_scores(
     )
 
 
+# --- Học sinh cần hỗ trợ trong một môn (D-118) ---------------------------------------------------
+
+
+def _has_scores(scores: SubjectScoresOut) -> bool:
+    return any(
+        r.tx or r.midterm is not None or r.final is not None or r.comment_result is not None
+        for r in scores.rows
+    )
+
+
+def build_subject_support(
+    session: Session,
+    class_info: repo.ClassInfo,
+    subject: repo.SubjectInfo,
+    semester: int | None,
+    config: AnalyticsConfig,
+) -> SubjectSupportOut:
+    """Học sinh cần hỗ trợ và thống kê kế hoạch của một lớp–môn. `semester` None: học kỳ II nếu
+    môn đã có điểm học kỳ II, không thì học kỳ I (cùng cách chọn với cảnh báo sớm, D-071)."""
+    if semester is None:
+        second = build_subject_scores(session, class_info, subject, 2, config)
+        scores = (
+            second
+            if _has_scores(second)
+            else build_subject_scores(session, class_info, subject, 1, config)
+        )
+    else:
+        scores = build_subject_scores(session, class_info, subject, semester, config)
+    return support.build_support(scores, config)
+
+
 # --- Hồ sơ học sinh -------------------------------------------------------------------------------
 
 
@@ -663,6 +702,7 @@ def build_student_profile(
             unexcused=result.absence.unexcused,
             late=result.absence.late,
             absent_total=result.absence.absent_total,
+            school_duty=result.absence.school_duty,
             limits=_absence_limits(config),
             by_month=_absences_by_month(
                 repo.attendance_days(session, class_info.id, student.class_student_id),

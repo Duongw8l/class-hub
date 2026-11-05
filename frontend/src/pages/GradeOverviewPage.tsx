@@ -3,9 +3,16 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { ClassSubjectResult, GradeOverview, GradeSubject } from '../api/analytics'
-import { ClassLevelsChart } from '../components/charts/ClassLevelsChart'
+import { ClassLevelsChart, ClassStackChart } from '../components/charts/ClassLevelsChart'
+import type { StackMode } from '../components/charts/ClassLevelsChart'
 import { CompareChart } from '../components/charts/CompareChart'
 import type { CompareDatum } from '../components/charts/CompareChart'
+import {
+  AttentionRateChart,
+  AttentionTable,
+  GradeKpis,
+  ModeToggle,
+} from '../components/grade/GradeInsights'
 import { PageTitle, Panel } from '../components/Panel'
 import { PeriodSelect } from '../components/PeriodSelect'
 import { QueryState } from '../components/QueryState'
@@ -14,6 +21,12 @@ import { formatScore } from '../lib/format'
 import { LEVEL_LABELS, PERIOD_LABELS } from '../lib/labels'
 
 const PERIODS = ['1', '2', 'year'] as const
+
+const PROMOTION_SERIES = [
+  { key: 'eligible', label: 'Đủ điều kiện lên lớp', color: 'var(--chart-good)' },
+  { key: 'not_eligible', label: 'Không đủ điều kiện', color: 'var(--chart-fail)' },
+  { key: 'unknown', label: 'Chưa đủ dữ liệu', color: 'var(--chart-neutral)' },
+]
 
 function Th({ children, right = true }: { children: ReactNode; right?: boolean }) {
   return (
@@ -304,6 +317,8 @@ export default function GradeOverviewPage() {
   const selected = useGradeOverview(level, period)
   const first = useGradeOverview(level, '1')
   const second = useGradeOverview(level, '2')
+  const [learningMode, setLearningMode] = useState<StackMode>('percent')
+  const [conductMode, setConductMode] = useState<StackMode>('percent')
 
   return (
     <>
@@ -315,19 +330,100 @@ export default function GradeOverviewPage() {
       <QueryState query={selected}>
         {(overview) => (
           <>
+            <GradeKpis overview={overview} />
             <Panel id="cac-lop" title={`Các lớp · ${PERIOD_LABELS[period]}`}>
               <ClassesTable overview={overview} />
             </Panel>
             <Panel
               id="muc-hoc-tap"
               title="Kết quả học tập theo lớp"
-              description="Số học sinh ở từng mức; cột cao hơn nghĩa là lớp đông hơn."
+              description={
+                learningMode === 'percent'
+                  ? 'Tỉ lệ học sinh ở từng mức; mỗi cột là toàn bộ sĩ số của lớp, nên so được các lớp đông, vắng khác nhau.'
+                  : 'Số học sinh ở từng mức; cột cao hơn nghĩa là lớp đông hơn.'
+              }
+              actions={
+                <ModeToggle
+                  value={learningMode}
+                  onChange={setLearningMode}
+                  label="Cách hiển thị kết quả học tập"
+                />
+              }
             >
               <ClassLevelsChart
                 classes={overview.classes}
-                label="Số học sinh theo kết quả học tập của từng lớp"
+                mode={learningMode}
+                label={
+                  learningMode === 'percent'
+                    ? 'Tỉ lệ học sinh theo kết quả học tập của từng lớp'
+                    : 'Số học sinh theo kết quả học tập của từng lớp'
+                }
               />
             </Panel>
+            <Panel
+              id="can-quan-tam"
+              title="Tỉ lệ học sinh cần quan tâm theo lớp"
+              description="Phần trăm trên sĩ số của lớp: lớp có cột cao cần BGH và GVCN chú ý trước."
+            >
+              <div className="space-y-6">
+                <AttentionRateChart overview={overview} />
+                <AttentionTable overview={overview} />
+              </div>
+            </Panel>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Panel
+                id="ren-luyen"
+                title="Kết quả rèn luyện theo lớp"
+                description="Tỉ lệ học sinh ở từng mức rèn luyện của mỗi lớp."
+                actions={
+                  <ModeToggle
+                    value={conductMode}
+                    onChange={setConductMode}
+                    label="Cách hiển thị kết quả rèn luyện"
+                  />
+                }
+              >
+                <ClassLevelsChart
+                  classes={overview.classes}
+                  field="conduct_levels"
+                  mode={conductMode}
+                  label="Kết quả rèn luyện của từng lớp"
+                />
+              </Panel>
+              <Panel
+                id="len-lop"
+                title="Tỉ lệ đủ điều kiện lên lớp"
+                description={
+                  period === 'year'
+                    ? 'Theo kết quả cả năm (học tập, rèn luyện, số buổi nghỉ).'
+                    : 'Chỉ xét khi xem “Cả năm”.'
+                }
+              >
+                {period === 'year' ? (
+                  <ClassStackChart
+                    rows={overview.classes.map((item) => ({
+                      name: item.name,
+                      total: item.student_count,
+                      counts: { ...(item.promotion ?? {}) },
+                    }))}
+                    series={PROMOTION_SERIES}
+                    mode="percent"
+                    label="Tỉ lệ học sinh đủ điều kiện lên lớp của từng lớp"
+                  />
+                ) : (
+                  <div className="flex h-72 flex-col items-center justify-center gap-3 text-sm text-slate-500">
+                    <p>Điều kiện lên lớp chỉ xét theo kết quả cả năm.</p>
+                    <button
+                      type="button"
+                      onClick={() => setPeriod('year')}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100"
+                    >
+                      Xem cả năm
+                    </button>
+                  </div>
+                )}
+              </Panel>
+            </div>
           </>
         )}
       </QueryState>

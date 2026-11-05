@@ -52,6 +52,7 @@ TYPE_LABELS = {
     ReportType.CONTACT_SLIP: "nhận xét phiếu liên lạc",
     ReportType.SUBJECT_COMMENT: "nhận xét môn",
     ReportType.REPORT: "báo cáo",
+    ReportType.TEACHING_PLAN: "gợi ý điều chỉnh kế hoạch dạy học",
 }
 
 _FENCE = re.compile(r"^```[a-zA-Z]*\s*|\s*```$")
@@ -288,11 +289,13 @@ def generate_aggregate(
     roster: Sequence[RosterStudent],
     open_class_id: int | None,
     feedback: str | None = None,
+    prompt: PromptKind = "aggregate",
 ) -> Outcome:
-    """Viết báo cáo một lớp hoặc một khối (`scope_label` như "lớp 11A2"). Không nêu học sinh nào."""
+    """Viết báo cáo một lớp hoặc một khối (`scope_label` như "lớp 11A2"), hoặc gợi ý điều chỉnh kế
+    hoạch dạy học một lớp–môn (`prompt="teaching_plan"`, D-118). Không nêu học sinh nào."""
     pseudo = Pseudonymizer(roster, open_class_id)
     note = prepare_feedback(pseudo, feedback)
-    system = _system_prompt("aggregate", None)
+    system = _system_prompt(prompt, None)
     evidence = json.dumps(facts, ensure_ascii=False, default=str)
     violations: list[Violation] = []
     for attempt in range(1, MAX_REWRITES + 2):

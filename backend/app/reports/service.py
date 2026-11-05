@@ -24,7 +24,7 @@ from app.auth.audit import record_access
 from app.auth.models import User
 from app.classes.years import resolve_year, year_of_class
 from app.core.authorize import AuthorizationError
-from app.core.enums import AuditAction, ReportScope, ReportStatus
+from app.core.enums import AuditAction, ReportScope, ReportStatus, ReportType
 from app.core.labels import label_vi
 from app.core.pseudonymize import Pseudonymizer, RosterStudent, UnsafePayload
 from app.reports import facts as report_facts
@@ -160,7 +160,10 @@ def resolve(session: Session, user: User, target: ReportTarget, student_id: int 
     info = _class_or_404(session, target.class_id)
     class_year = _year_of(session, info.id)
     if scope is ReportScope.CLASS:
-        key = ReportKey(target.type, scope, info.id, target.semester, None, info.id, class_year)
+        # Báo cáo lớp không có môn; gợi ý kế hoạch dạy học gắn với một môn (D-118).
+        key = ReportKey(
+            target.type, scope, info.id, target.semester, target.subject_id, info.id, class_year
+        )
         return Resolved(key, info, None)
     if student_id is None:
         raise ValueError("Nhận xét học sinh cần student_id.")
@@ -221,6 +224,11 @@ def facts_for(session: Session, resolved: Resolved) -> dict[str, Any]:
         )
     elif info is None:
         result = None
+    elif key.type is ReportType.TEACHING_PLAN:
+        assert key.subject_id is not None
+        result = report_facts.teaching_plan_facts(
+            session, info, key.subject_id, int(key.semester), config
+        )
     elif key.scope is ReportScope.CLASS:
         result = report_facts.class_facts(session, info, period, config)
     elif resolved.student is None:
@@ -284,6 +292,16 @@ def write(
                 feedback=feedback,
             )
             return outcomes[0]
+        if key.type is ReportType.TEACHING_PLAN:
+            return generation.generate_aggregate(
+                provider,
+                scope_label=f"{_scope_label(resolved)}, môn {facts['subject']}",
+                facts=facts,
+                roster=roster,
+                open_class_id=open_class,
+                feedback=feedback,
+                prompt="teaching_plan",
+            )
         return generation.generate_aggregate(
             provider,
             scope_label=_scope_label(resolved),

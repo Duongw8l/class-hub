@@ -1,7 +1,7 @@
 import { apiGet, apiPost, apiUpload } from './client'
 
 // Khớp schema của back-end (backend/app/imports/schemas.py).
-export type ImportKind = 'assessments' | 'attendance' | 'conduct' | 'roster'
+export type ImportKind = 'assessments' | 'attendance' | 'conduct' | 'roster' | 'lessons'
 export type ConductPeriod = 'hk1' | 'hk2' | 'year'
 export type RowStatus = 'ok' | 'warning' | 'error'
 export type RowAction = 'new' | 'changed' | 'unchanged'
@@ -118,4 +118,16 @@ export function fetchMappingTemplates(
   signal?: AbortSignal,
 ): Promise<MappingTemplate[]> {
   return apiGet<MappingTemplate[]>(`/imports/mappings?kind=${kind}`, signal)
+}
+
+// Danh sách học sinh của lớp (mã, họ tên) để dựng tệp mẫu có sẵn tên lớp. Back-end kiểm quyền xem
+// lớp như mọi endpoint khác.
+export interface ClassStudent {
+  id: number
+  student_code: string
+  full_name: string
+}
+
+export function fetchClassStudents(classId: number, signal?: AbortSignal) {
+  return apiGet<ClassStudent[]>(`/classes/${classId}/students`, signal)
 }

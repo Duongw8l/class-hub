@@ -10,7 +10,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.enums import ReportJobStatus, ReportScope, ReportStatus, ReportType
-from app.reports.permissions import STUDENT_TYPES
+from app.reports.permissions import STUDENT_TYPES, SUBJECT_TYPES
 
 Semester = Literal["1", "2", "year"]
 MAX_TEXT_CHARS = 5000
@@ -31,11 +31,11 @@ class ReportTarget(BaseModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> Self:
-        if self.type is ReportType.SUBJECT_COMMENT:
+        if self.type in SUBJECT_TYPES:
             if self.class_id is None or self.subject_id is None or self.grade_level is not None:
-                raise ValueError("Nhận xét môn cần class_id và subject_id, không có grade_level.")
+                raise ValueError("Bản theo môn cần class_id và subject_id, không có grade_level.")
             if self.semester == "year":
-                raise ValueError("Nhận xét môn chỉ viết cho học kỳ I hoặc II.")
+                raise ValueError("Bản theo môn chỉ viết cho học kỳ I hoặc II.")
         elif self.type in STUDENT_TYPES:
             if self.class_id is None or self.subject_id is not None or self.grade_level is not None:
                 raise ValueError("Học bạ và phiếu liên lạc cần class_id, không có môn hay khối.")

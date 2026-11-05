@@ -21,6 +21,7 @@ from app.core.enums import (
     ConductLevel,
     ImportKind,
 )
+from app.imports import lessons
 from app.imports.models import ImportJob
 from app.imports.roster import write_roster
 
@@ -77,8 +78,11 @@ def _write_attendance(session: Session, job: ImportJob) -> tuple[int, int]:
         for record in job.rows
     ]
     statement = insert(Attendance)
+    # Chỉ dòng đổi trạng thái mới tới đây (dòng giữ nguyên không ghi lại). Tệp không có lý do vắng,
+    # nên khi trạng thái đổi thì lý do và ghi chú cũ (GVCN nhập tay, D-120) không còn đúng: xoá đi.
     statement = statement.on_conflict_do_update(
-        index_elements=["class_student_id", "date"], set_={"status": statement.excluded.status}
+        index_elements=["class_student_id", "date"],
+        set_={"status": statement.excluded.status, "reason": None, "note": None},
     )
     return _upsert(session, statement, rows)
 
@@ -120,6 +124,8 @@ def write_job(session: Session, job: ImportJob) -> tuple[int, int]:
         return 0, 0
     if job.kind is ImportKind.ASSESSMENTS:
         return _write_assessments(session, job)
+    if job.kind is ImportKind.LESSONS:
+        return lessons.write_lessons(session, job)
     if job.kind is ImportKind.ATTENDANCE:
         return _write_attendance(session, job)
     if job.kind is ImportKind.ROSTER:

@@ -35,10 +35,26 @@ export const router = createBrowserRouter([
           },
           { path: '/classes/:classId/import', element: <ImportPage /> },
           {
+            path: '/classes/:classId/attendance',
+            lazy: async () => ({ Component: (await import('./pages/AttendancePage')).default }),
+          },
+          {
+            path: '/classes/:classId/subjects/:subjectId/lessons',
+            lazy: async () => ({ Component: (await import('./pages/LessonsPage')).default }),
+          },
+          {
+            path: '/classes/:classId/conduct',
+            lazy: async () => ({ Component: (await import('./pages/ConductPage')).default }),
+          },
+          {
             path: '/grades/:level',
             lazy: async () => ({ Component: (await import('./pages/GradeOverviewPage')).default }),
           },
           { path: '/assistant', element: <AssistantPage /> },
+          {
+            path: '/support',
+            lazy: async () => ({ Component: (await import('./pages/SupportPage')).default }),
+          },
           {
             path: '/reports',
             lazy: async () => ({ Component: (await import('./pages/ReportsPage')).default }),

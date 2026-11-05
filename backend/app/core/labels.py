@@ -7,12 +7,14 @@ nhau có cùng giá trị (ví dụ "pass") sẽ đè nhau nếu gộp chung m�
 from enum import StrEnum
 
 from app.core.enums import (
+    AbsenceReason,
     AssessmentKind,
     AssessmentType,
     AssistantFeedback,
     AttendanceStatus,
     AuditAction,
     CommentResult,
+    ConductChangeReason,
     ConductLevel,
     ConductPeriod,
     ImportKind,
@@ -52,6 +54,14 @@ LABELS_VI: dict[type[StrEnum], dict[StrEnum, str]] = {
         AttendanceStatus.ABSENT_EXCUSED: "Nghỉ có phép",
         AttendanceStatus.ABSENT_UNEXCUSED: "Nghỉ không phép",
         AttendanceStatus.LATE: "Muộn",
+        AttendanceStatus.SCHOOL_DUTY: "Vắng do nhà trường cử đi",
+    },
+    AbsenceReason: {
+        AbsenceReason.SICK: "Ốm, khám bệnh",
+        AbsenceReason.FAMILY: "Việc gia đình",
+        AbsenceReason.COMPETITION: "Thi học sinh giỏi, thi đấu",
+        AbsenceReason.SCHOOL_ACTIVITY: "Hoạt động do trường cử",
+        AbsenceReason.OTHER: "Khác",
     },
     ConductPeriod: {
         ConductPeriod.HK1: "Học kỳ I",
@@ -84,6 +94,7 @@ LABELS_VI: dict[type[StrEnum], dict[StrEnum, str]] = {
         ReportType.SCHOOL_RECORD: "Học bạ",
         ReportType.CONTACT_SLIP: "Phiếu liên lạc",
         ReportType.REPORT: "Báo cáo",
+        ReportType.TEACHING_PLAN: "Gợi ý điều chỉnh kế hoạch dạy học",
     },
     ReportStatus: {
         ReportStatus.DRAFT: "Bản nháp",
@@ -123,6 +134,18 @@ LABELS_VI: dict[type[StrEnum], dict[StrEnum, str]] = {
         AuditAction.EXPORT_REPORT: "Xuất PDF nhận xét hoặc báo cáo",
         AuditAction.VIEW_CLASS_REPORTS: "Xem danh sách nhận xét của lớp",
         AuditAction.EDIT_SCORES: "Sửa hoặc nhập tay điểm",
+        AuditAction.VIEW_CLASS_CONDUCT: "Xem rèn luyện của lớp",
+        AuditAction.EDIT_CONDUCT: "Sửa hoặc nhập tay rèn luyện",
+        AuditAction.VIEW_ATTENDANCE: "Xem điểm danh của lớp",
+        AuditAction.EDIT_ATTENDANCE: "Điểm danh hoặc sửa điểm danh ngày",
+        AuditAction.VIEW_LESSONS: "Xem điểm danh theo tiết",
+        AuditAction.EDIT_LESSON: "Điểm danh một tiết",
+    },
+    ConductChangeReason: {
+        ConductChangeReason.REVIEW: "Xét lại",
+        ConductChangeReason.CORRECTION: "Nhập sai",
+        ConductChangeReason.SUPPLEMENT: "Bổ sung kết quả còn thiếu",
+        ConductChangeReason.OTHER: "Khác",
     },
     ScoreChangeReason: {
         ScoreChangeReason.RETEST: "Kiểm tra lại",
@@ -134,6 +157,7 @@ LABELS_VI: dict[type[StrEnum], dict[StrEnum, str]] = {
         ImportKind.ASSESSMENTS: "Điểm",
         ImportKind.ATTENDANCE: "Điểm danh",
         ImportKind.CONDUCT: "Rèn luyện",
+        ImportKind.LESSONS: "Điểm danh tiết",
         ImportKind.ROSTER: "Danh sách học sinh",
     },
     RegulationStatus: {

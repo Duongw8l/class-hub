@@ -3,8 +3,10 @@ import { useSearchParams } from 'react-router-dom'
 import {
   fetchDashboard,
   fetchGradeOverview,
+  fetchMySupport,
   fetchStudentProfile,
   fetchSubjectScores,
+  fetchSubjectSupport,
 } from '../api/analytics'
 import type { Period } from '../api/analytics'
 import { ApiError } from '../api/client'
@@ -34,6 +36,28 @@ export function useSubjectScores(classId: number, subjectId: number, semester: 1
     queryKey: ['subject-scores', token, classId, subjectId, semester],
     queryFn: ({ signal }) => fetchSubjectScores(classId, subjectId, semester, signal),
     enabled: token !== null && Number.isInteger(classId) && Number.isInteger(subjectId),
+    retry,
+  })
+}
+
+export function useSubjectSupport(classId: number, subjectId: number, semester: 1 | 2 | null) {
+  const { token } = useAuth()
+  return useQuery({
+    queryKey: ['subject-support', token, classId, subjectId, semester],
+    queryFn: ({ signal }) => fetchSubjectSupport(classId, subjectId, semester, signal),
+    enabled: token !== null && Number.isInteger(classId) && Number.isInteger(subjectId),
+    retry,
+  })
+}
+
+// Mọi lớp–môn đang dạy trong năm đang chọn (D-118). `enabled` để chỉ giáo viên có phân công gọi.
+export function useMySupport(semester: 1 | 2 | null, enabled = true) {
+  const { token } = useAuth()
+  const { yearId } = useSelectedYear()
+  return useQuery({
+    queryKey: ['my-support', token, semester, yearId],
+    queryFn: ({ signal }) => fetchMySupport(semester, yearId, signal),
+    enabled: token !== null && enabled,
     retry,
   })
 }

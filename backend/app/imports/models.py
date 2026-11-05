@@ -5,18 +5,20 @@ các dòng hợp lệ (mã học sinh, điểm...): không lưu tệp gốc và 
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
     Numeric,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
     func,
@@ -26,8 +28,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base import Base, IntPk, enum_type
 from app.core.enums import (
+    AbsenceReason,
     AssessmentKind,
+    AttendanceStatus,
     CommentResult,
+    ConductChangeReason,
+    ConductLevel,
     ConductPeriod,
     ImportKind,
     ImportStatus,
@@ -110,6 +116,57 @@ class AssessmentChange(Base):
         enum_type(CommentResult, "new_comment_result")
     )
     reason: Mapped[ScoreChangeReason] = mapped_column(enum_type(ScoreChangeReason, "reason"))
+    note: Mapped[str | None] = mapped_column(String(255))
+    changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ConductChange(Base):
+    """Lịch sử sửa / nhập tay rèn luyện của một học sinh (D-119). Chỉ thêm, không sửa.
+
+    Mỗi dòng là một kỳ đổi mức hoặc nhận xét: cũ (NULL khi trước đó chưa có) → mới, kèm lý do và
+    người sửa. Nhập từ tệp không ghi vào đây (đã có import_jobs và nhật ký import_confirm).
+    """
+
+    __tablename__ = "conduct_changes"
+    __table_args__ = (Index("ix_conduct_changes_cs", "class_student_id"),)
+
+    id: Mapped[IntPk]
+    class_student_id: Mapped[int] = mapped_column(
+        ForeignKey("class_students.id", ondelete="CASCADE")
+    )
+    period: Mapped[ConductPeriod] = mapped_column(enum_type(ConductPeriod, "period"))
+    old_level: Mapped[ConductLevel | None] = mapped_column(enum_type(ConductLevel, "old_level"))
+    new_level: Mapped[ConductLevel] = mapped_column(enum_type(ConductLevel, "new_level"))
+    old_comment: Mapped[str | None] = mapped_column(Text)
+    new_comment: Mapped[str | None] = mapped_column(Text)
+    reason: Mapped[ConductChangeReason] = mapped_column(enum_type(ConductChangeReason, "reason"))
+    note: Mapped[str | None] = mapped_column(String(255))
+    changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AttendanceChange(Base):
+    """Lịch sử điểm danh ngày nhập / sửa tay của GVCN (D-120). Chỉ thêm, không sửa.
+
+    Mỗi dòng là một học sinh, một ngày đổi trạng thái hoặc lý do: cũ (NULL khi trước đó chưa điểm
+    danh) → mới, người sửa. Nhập từ tệp không ghi vào đây (đã có import_jobs và import_confirm).
+    """
+
+    __tablename__ = "attendance_changes"
+    __table_args__ = (Index("ix_attendance_changes_cs_date", "class_student_id", "date"),)
+
+    id: Mapped[IntPk]
+    class_student_id: Mapped[int] = mapped_column(
+        ForeignKey("class_students.id", ondelete="CASCADE")
+    )
+    date: Mapped[date] = mapped_column(Date)
+    old_status: Mapped[AttendanceStatus | None] = mapped_column(
+        enum_type(AttendanceStatus, "old_status")
+    )
+    new_status: Mapped[AttendanceStatus] = mapped_column(enum_type(AttendanceStatus, "new_status"))
+    old_reason: Mapped[AbsenceReason | None] = mapped_column(enum_type(AbsenceReason, "old_reason"))
+    new_reason: Mapped[AbsenceReason | None] = mapped_column(enum_type(AbsenceReason, "new_reason"))
     note: Mapped[str | None] = mapped_column(String(255))
     changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -5,7 +5,14 @@ Mỗi module khai báo model của mình; file này là nơi duy nhất liệt k
 
 from app.assistant.models import AiLog
 from app.auth.models import AuditLog, User, UserImportJob
-from app.classes.academic import Assessment, Attendance, ConductResult, ExamRegistration
+from app.classes.academic import (
+    Assessment,
+    Attendance,
+    ConductResult,
+    ExamRegistration,
+    Lesson,
+    LessonAbsence,
+)
 from app.classes.models import (
     ClassStudent,
     SchoolClass,
@@ -16,7 +23,13 @@ from app.classes.models import (
 )
 from app.core.base import Base
 from app.core.models import Setting
-from app.imports.models import AssessmentChange, ImportJob, ImportMapping
+from app.imports.models import (
+    AssessmentChange,
+    AttendanceChange,
+    ConductChange,
+    ImportJob,
+    ImportMapping,
+)
 from app.rag.models import RegulationChunk
 from app.reports.models import Report, ReportJob
 from app.warning.models import RiskAlert
@@ -26,13 +39,17 @@ __all__ = [
     "Assessment",
     "AssessmentChange",
     "Attendance",
+    "AttendanceChange",
     "AuditLog",
     "Base",
     "ClassStudent",
+    "ConductChange",
     "ConductResult",
     "ExamRegistration",
     "ImportJob",
     "ImportMapping",
+    "Lesson",
+    "LessonAbsence",
     "RegulationChunk",
     "Report",
     "ReportJob",

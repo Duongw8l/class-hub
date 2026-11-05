@@ -153,6 +153,7 @@ class ProfileAttendanceOut(BaseModel):
     unexcused: int
     late: int
     absent_total: int  # nghỉ có phép + không phép, cả năm học
+    school_duty: int  # vắng do nhà trường cử đi, không tính buổi nghỉ (D-120)
     limits: AbsenceLimitsOut
     by_month: list[MonthAbsenceOut]
 
@@ -258,6 +259,7 @@ class ClassOverviewOut(BaseModel):
     absent_notice_students: int
     absent_over_limit_students: int
     below_fail_students: int  # số học sinh có ít nhất một môn dưới 3,5
+    promotion: PromotionCountsOut | None = None  # chỉ khi xem cả năm
 
 
 class ClassMeanOut(BaseModel):
@@ -285,3 +287,85 @@ class GradeOverviewOut(BaseModel):
     period: Period
     classes: list[ClassOverviewOut]
     subjects: list[GradeSubjectOut]  # môn điểm số trước, rồi môn nhận xét
+
+
+# --- Học sinh cần hỗ trợ trong một môn (GVBM, D-118) --------------------------------------------
+
+SupportLevel = Literal["high", "medium", "low"]
+
+
+class SupportReasonOut(BaseModel):
+    """Một lý do, chỉ từ điểm của chính môn đó. `message` đã có số liệu, viết sẵn tiếng Việt."""
+
+    # average_below_fail, average_below_pass, comment_fail, level_drop, exam_below_pass,
+    # missing_scores
+    code: str
+    level: SupportLevel
+    message: str
+
+
+class SupportStudentOut(BaseModel):
+    student_id: int
+    student_code: str
+    full_name: str
+    level: SupportLevel  # mức cao nhất trong các lý do
+    reasons: list[SupportReasonOut]  # mức cao trước
+    average: Score | None  # ĐTBmhk của học kỳ đang xem (môn điểm số)
+    average_semester1: Score | None  # để so khi xem học kỳ II
+    comment_result: CommentResult | None  # môn nhận xét
+
+
+class StudentBriefOut(BaseModel):
+    student_id: int
+    student_code: str
+    full_name: str
+    average: Score | None
+
+
+class SupportCountsOut(BaseModel):
+    high: int
+    medium: int
+    low: int
+
+
+class ComponentStatOut(BaseModel):
+    """Một loại đầu điểm của cả lớp trong học kỳ (số mô tả để lên kế hoạch dạy học)."""
+
+    count: int  # số điểm đã có (thường xuyên: số bài; giữa kỳ, cuối kỳ: số học sinh)
+    mean: Score | None
+    below_pass: int  # số điểm dưới mức đạt
+
+
+class SubjectPlanStatsOut(BaseModel):
+    """Thống kê giúp điều chỉnh kế hoạch dạy học của một lớp–môn trong một học kỳ."""
+
+    regular: ComponentStatOut  # điểm thường xuyên
+    midterm: ComponentStatOut
+    final: ComponentStatOut
+    support_group: int  # ĐTB dưới mức đạt: nhóm cần phụ đạo
+    advanced_group: int  # ĐTB từ mức Tốt: nhóm có thể bồi dưỡng
+    previous_mean: Score | None  # ĐTB lớp học kỳ I khi đang xem học kỳ II
+    comment_pass: int
+    comment_fail: int
+    comment_missing: int
+
+
+class SubjectSupportOut(BaseModel):
+    class_info: ClassRefOut
+    subject: SubjectOut
+    semester: int
+    thresholds: ThresholdsOut
+    student_count: int
+    mean: Score | None
+    distribution: DistributionOut
+    counts: SupportCountsOut
+    students: list[SupportStudentOut]  # chỉ em có ít nhất một lý do; mức cao trước
+    advanced_students: list[StudentBriefOut]  # ĐTB từ mức Tốt, cao trước
+    stats: SubjectPlanStatsOut
+
+
+class MySupportOut(BaseModel):
+    """Mọi lớp–môn mà giáo viên đang dạy trong một năm học."""
+
+    school_year_id: int | None
+    items: list[SubjectSupportOut]

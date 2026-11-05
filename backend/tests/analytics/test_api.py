@@ -271,6 +271,24 @@ def test_grade_overview_compares_the_three_classes(
     assert kinds == sorted(kinds, key=lambda kind: kind != "score")
 
 
+def test_grade_overview_adds_promotion_counts_for_the_whole_year_only(
+    api_client: TestClient, auth_headers: Headers
+) -> None:
+    headers = auth_headers("bgh1@example.com")
+    year = get(api_client, "/api/v1/grades/12/overview?semester=year", headers).json()
+    first = get(api_client, "/api/v1/grades/12/overview?semester=1", headers).json()
+
+    assert all(c["promotion"] is None for c in first["classes"])
+    for item in year["classes"]:
+        promotion = item["promotion"]
+        assert sum(promotion.values()) == item["student_count"]
+        # Cùng số với dashboard lớp: một nguồn tính duy nhất trong Analytics.
+        dashboard = get(
+            api_client, f"/api/v1/classes/{item['class_id']}/dashboard?semester=year", headers
+        ).json()
+        assert promotion == dashboard["promotion"]
+
+
 @pytest.mark.parametrize(
     "email",
     [
@@ -304,6 +322,124 @@ def test_grade_overview_of_a_nonexistent_grade(
     )
 
 
+# --- Học sinh cần hỗ trợ trong một môn (D-118) ----------------------------------------------------
+
+SUPPORT_ALLOWED = [
+    ("gv.van.11@example.com", "11A2", "Ngữ văn"),  # GVBM đúng lớp-môn
+    ("gv.toan.11@example.com", "11A2", "Toán"),
+    ("gvcn.11a2@example.com", "11A2", "Toán"),  # GVCN: mọi môn của lớp mình
+    ("bgh1@example.com", "11A2", "Ngữ văn"),
+]
+SUPPORT_DENIED = [
+    ("gv.van.11@example.com", "11A2", "Toán"),  # môn không dạy
+    ("gv.van.11@example.com", "10A1", "Ngữ văn"),  # lớp không dạy
+    ("gvcn.11a2@example.com", "11A3", "Toán"),  # lớp khác
+    ("admin@example.com", "11A2", "Toán"),
+]
+
+
+@pytest.mark.parametrize(("email", "class_name", "subject"), SUPPORT_ALLOWED)
+def test_subject_support_allowed(
+    api_client: TestClient,
+    auth_headers: Headers,
+    class_id_of: ClassId,
+    subject_id_of: SubjectId,
+    email: str,
+    class_name: str,
+    subject: str,
+) -> None:
+    url = (
+        f"/api/v1/classes/{class_id_of(class_name)}/subjects/{subject_id_of(subject)}"
+        "/support?semester=1"
+    )
+    response = get(api_client, url, auth_headers(email))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["semester"] == 1 and body["subject"]["name"] == subject
+    assert sum(body["counts"].values()) == len(body["students"])
+    for student in body["students"]:
+        assert student["reasons"] and student["level"] == student["reasons"][0]["level"]
+        # Chỉ điểm môn này: không có chuyên cần, rèn luyện hay thông tin phụ huynh.
+        assert set(student) == {
+            "student_id",
+            "student_code",
+            "full_name",
+            "level",
+            "reasons",
+            "average",
+            "average_semester1",
+            "comment_result",
+        }
+
+
+@pytest.mark.parametrize(("email", "class_name", "subject"), SUPPORT_DENIED)
+def test_subject_support_denied(
+    api_client: TestClient,
+    auth_headers: Headers,
+    class_id_of: ClassId,
+    subject_id_of: SubjectId,
+    email: str,
+    class_name: str,
+    subject: str,
+) -> None:
+    url = f"/api/v1/classes/{class_id_of(class_name)}/subjects/{subject_id_of(subject)}/support"
+    response = get(api_client, url, auth_headers(email))
+
+    assert response.status_code == 403
+    assert response.json() == FORBIDDEN
+
+
+def test_subject_support_matches_the_score_table(
+    api_client: TestClient, auth_headers: Headers, class_id_of: ClassId, subject_id_of: SubjectId
+) -> None:
+    headers = auth_headers("gv.toan.11@example.com")
+    base = f"/api/v1/classes/{class_id_of('11A2')}/subjects/{subject_id_of('Toán')}"
+    support = get(api_client, f"{base}/support?semester=1", headers).json()
+    scores = get(api_client, f"{base}/scores?semester=1", headers).json()
+
+    below = {
+        r["student_id"] for r in scores["rows"] if r["average"] is not None and r["average"] < 5
+    }
+    flagged = {
+        s["student_id"]
+        for s in support["students"]
+        if {r["code"] for r in s["reasons"]} & {"average_below_fail", "average_below_pass"}
+    }
+    assert flagged == below
+    assert support["mean"] == scores["mean"]
+    assert support["stats"]["support_group"] == len(below)
+
+
+def test_my_support_lists_every_class_subject_i_teach_and_nothing_else(
+    api_client: TestClient, auth_headers: Headers
+) -> None:
+    body = get(api_client, "/api/v1/me/support", auth_headers("gv.van.11@example.com")).json()
+
+    pairs = [(i["class_info"]["name"], i["subject"]["name"]) for i in body["items"]]
+    assert pairs == [("11A1", "Ngữ văn"), ("11A2", "Ngữ văn"), ("11A3", "Ngữ văn")]
+    assert all(i["semester"] in (1, 2) for i in body["items"])
+
+
+@pytest.mark.parametrize("email", ["bgh1@example.com", "admin@example.com"])
+def test_my_support_is_empty_for_non_teachers(
+    api_client: TestClient, auth_headers: Headers, email: str
+) -> None:
+    response = get(api_client, "/api/v1/me/support", auth_headers(email))
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
+def test_my_support_is_audited_per_class_subject(
+    api_client: TestClient, auth_headers: Headers, db_session: Session
+) -> None:
+    get(api_client, "/api/v1/me/support?semester=1", auth_headers("gv.van.11@example.com"))
+
+    rows = [r for r in audit(db_session) if (r.details or {}).get("view") == "support"]
+    assert len(rows) == 3
+    assert all(r.action is AuditAction.VIEW_SUBJECT_SCORES for r in rows)
+
+
 # --- Xác thực -------------------------------------------------------------------------------------
 
 
@@ -317,6 +453,8 @@ def test_all_three_endpoints_require_login(
         f"/api/v1/classes/{class_id_of('11A2')}/dashboard",
         f"/api/v1/classes/{class_id_of('11A2')}/subjects/{subject_id_of('Toán')}/scores",
         "/api/v1/grades/11/overview",
+        f"/api/v1/classes/{class_id_of('11A2')}/subjects/{subject_id_of('Toán')}/support",
+        "/api/v1/me/support",
     ]
 
     for url in urls:

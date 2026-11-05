@@ -7,7 +7,7 @@ hạn sau 24 giờ. Xác nhận chỉ ghi đúng những gì đã xem; có dòng
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -27,9 +27,9 @@ from app.core.enums import (
     ImportKind,
     ImportStatus,
 )
+from app.imports import lessons, roster, validation
 from app.imports import mappings as templates
 from app.imports import repository as repo
-from app.imports import roster, validation
 from app.imports.columns import FieldSpec, detect_header_line, fields_for, resolve_mapping
 from app.imports.models import ImportJob
 from app.imports.parsing import read_grid, table_from_grid
@@ -149,6 +149,22 @@ def _validate(
             ),
         )
     students = repo.students_by_code(session, request.class_id)
+    if request.kind is ImportKind.LESSONS:
+        assert request.subject is not None
+        first, last = analytics_repo.school_year_range(session, request.class_id)
+        columns, problems = _lesson_columns(table, mapping, first, last)
+        return lessons.validate_lessons(
+            table,
+            mapping,
+            columns,
+            problems,
+            students=students,
+            subject_id=request.subject.id,
+            existing=lessons.existing_lessons(session, request.class_id),
+            first=first,
+            last=last,
+            today=lessons.today(),
+        )
     if request.kind is ImportKind.ATTENDANCE:
         start, end = analytics_repo.school_year_range(session, request.class_id)
         return validation.validate_attendance(
@@ -188,6 +204,13 @@ def _validate(
         ),
         allow_partial=request.allow_partial,
     )
+
+
+def _lesson_columns(
+    table: Any, mapping: Mapping[str, str | None], first: date, last: date
+) -> tuple[list[lessons.LessonColumn], list[lessons.HeaderProblem]]:
+    used = {header for header in mapping.values() if header}
+    return lessons.lesson_columns(table.headers, used, first, last)
 
 
 def create_preview(session: Session, user: User, request: PreviewRequest) -> PreviewOut:
@@ -240,6 +263,19 @@ def create_preview(session: Session, user: User, request: PreviewRequest) -> Pre
         )
         for spec in fields
     ]
+    missing_required = list(resolution.missing_required)
+    ignored_columns = list(resolution.ignored_columns)
+    if request.kind is ImportKind.LESSONS:
+        # Mỗi cột tiết là một "trường" động để bản xem trước hiện đúng giá trị từng tiết.
+        first, last = analytics_repo.school_year_range(session, request.class_id)
+        columns, problems = _lesson_columns(table, resolution.mapping, first, last)
+        field_out += [
+            FieldOut(name=c.field, label=c.label, required=False, column=c.header) for c in columns
+        ]
+        lesson_headers = {c.header for c in columns} | {p.header for p in problems}
+        ignored_columns = [h for h in ignored_columns if h not in lesson_headers]
+        if not columns and not problems:
+            missing_required.append("Ít nhất một cột tiết học (ví dụ '05/10 Tiết 2')")
     subject_ref = (
         ClassSubjectRef(id=request.subject.id, name=request.subject.name)
         if request.subject is not None
@@ -255,12 +291,12 @@ def create_preview(session: Session, user: User, request: PreviewRequest) -> Pre
         "header_line": header_line,
         "detected_columns": [h for h in table.headers if h],
         "fields": field_out,
-        "missing_required": resolution.missing_required,
-        "ignored_columns": resolution.ignored_columns,
+        "missing_required": missing_required,
+        "ignored_columns": ignored_columns,
         "notes": notes,
     }
 
-    if resolution.missing_required:
+    if missing_required:
         return PreviewOut(
             job_id=None,
             summary=_summary([]),
@@ -378,7 +414,7 @@ def confirm_job(session: Session, user: User, job_id: uuid.UUID) -> tuple[Confir
             commit=False,
         )
         session.commit()
-    except (IntegrityError, roster.RosterConflict) as error:
+    except (IntegrityError, roster.RosterConflict, lessons.LessonSlotTaken) as error:
         session.rollback()
         raise ImportConflict from error
     # Danh sách học sinh chưa có điểm nên không có gì để cảnh báo sớm tính lại.

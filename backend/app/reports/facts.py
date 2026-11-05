@@ -17,7 +17,7 @@ from app.analytics import repository as repo
 from app.analytics import service as analytics
 from app.analytics.config import AnalyticsConfig
 from app.analytics.schemas import Period
-from app.core.enums import CommentResult, ConductLevel, ReportType
+from app.core.enums import AssessmentType, CommentResult, ConductLevel, ReportType
 from app.core.labels import label_vi
 from app.warning import repository as warning_repo
 from app.warning import service as warning_service
@@ -262,3 +262,84 @@ def grade_facts(
             if s["assessment_type"] == "comment"
         ],
     }
+
+
+# Lý do cần hỗ trợ trong một môn (analytics/support.py) diễn đạt cho LLM, không kèm số ngưỡng.
+_SUPPORT_REASONS = {
+    "average_below_fail": "ĐTB môn dưới ngưỡng quá thấp",
+    "average_below_pass": "ĐTB môn chưa tới mức đạt",
+    "comment_fail": "kết quả môn Chưa đạt",
+    "level_drop": "ĐTB học kỳ II tụt khoảng điểm so với học kỳ I",
+    "exam_below_pass": "ĐTB đạt nhưng bài giữa kỳ hoặc cuối kỳ dưới mức đạt",
+    "missing_scores": "còn thiếu đầu điểm so với lớp",
+}
+
+
+def teaching_plan_facts(
+    session: Session,
+    class_info: repo.ClassInfo,
+    subject_id: int,
+    semester: int,
+    config: AnalyticsConfig,
+) -> dict[str, Any] | None:
+    """Số liệu một lớp–môn để gợi ý điều chỉnh kế hoạch dạy học (D-118). Chỉ số đếm và trung bình
+    của cả lớp, không có tên hay mã học sinh nào."""
+    subject = next(
+        (s for s in repo.class_subjects(session, class_info.id) if s.id == subject_id), None
+    )
+    if subject is None:
+        return None
+    data = analytics.build_subject_support(session, class_info, subject, semester, config)
+    stats = data.stats
+    reasons: dict[str, int] = {}
+    for student in data.students:
+        for code in dict.fromkeys(r.code for r in student.reasons):
+            label = _SUPPORT_REASONS.get(code, code)
+            reasons[label] = reasons.get(label, 0) + 1
+    facts: dict[str, Any] = {
+        "class": class_info.name,
+        "grade": class_info.grade_level,
+        "subject": subject.name,
+        "period": PERIOD_LABELS[str(semester)],
+        "student_count": data.student_count,
+        "students_needing_support": data.counts.model_dump(),
+        "students_by_reason": reasons,
+    }
+    if subject.assessment_type is AssessmentType.SCORE:
+        dist = data.distribution
+        facts |= {
+            "class_mean": data.mean,
+            # Ngưỡng lấy từ settings (qua Analytics), để LLM nêu đúng số khi nhắc tới.
+            "thresholds": {
+                "very_low": data.thresholds.fail,
+                "pass": data.thresholds.passing,
+                "fair": data.thresholds.fair,
+                "good": data.thresholds.good,
+            },
+            "students_by_score_band": {
+                "below_very_low": dist.below_fail,
+                "very_low_to_below_pass": dist.fail_to_pass,
+                "pass_to_below_fair": dist.pass_to_fair,
+                "fair_to_below_good": dist.fair_to_good,
+                "from_good": dist.at_least_good,
+            },
+            "assessments": {
+                name: {"count": c.count, "mean": c.mean, "below_pass": c.below_pass}
+                for name, c in (
+                    ("regular", stats.regular),
+                    ("midterm", stats.midterm),
+                    ("final", stats.final),
+                )
+            },
+            "group_below_pass": stats.support_group,
+            "group_from_good": stats.advanced_group,
+        }
+        if stats.previous_mean is not None:
+            facts["class_mean_semester_1"] = stats.previous_mean
+    else:
+        facts["comment_results"] = {
+            "pass": stats.comment_pass,
+            "fail": stats.comment_fail,
+            "not_yet_assessed": stats.comment_missing,
+        }
+    return facts

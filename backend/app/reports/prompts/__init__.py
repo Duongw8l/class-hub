@@ -11,7 +11,7 @@ from typing import Literal
 PROMPT_VERSION = "reports-v1"
 _FILE_VERSION = "v1"
 
-PromptKind = Literal["comment", "aggregate"]
+PromptKind = Literal["comment", "aggregate", "teaching_plan"]
 
 
 @lru_cache

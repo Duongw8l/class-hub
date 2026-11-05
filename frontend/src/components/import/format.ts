@@ -6,6 +6,7 @@ export const KIND_LABELS: Record<ImportKind, string> = {
   attendance: 'Điểm danh',
   conduct: 'Rèn luyện',
   roster: 'Danh sách học sinh',
+  lessons: 'Điểm danh tiết',
 }
 
 export const PERIOD_LABELS: Record<ConductPeriod, string> = {
@@ -20,6 +21,7 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
     absent_excused: 'Nghỉ có phép',
     absent_unexcused: 'Nghỉ không phép',
     late: 'Muộn',
+    school_duty: 'Vắng do trường cử đi',
   },
   level: { good: 'Tốt', fair: 'Khá', pass: 'Đạt', fail: 'Chưa đạt' },
   comment_result: { pass: 'Đạt', fail: 'Chưa đạt' },

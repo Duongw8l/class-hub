@@ -5,7 +5,7 @@ import { PageTitle } from '../components/Panel'
 import { QueryState } from '../components/QueryState'
 import { useAssignments } from '../hooks/useAssignments'
 
-const KINDS: ImportKind[] = ['assessments', 'attendance', 'conduct']
+const KINDS: ImportKind[] = ['assessments', 'lessons', 'attendance', 'conduct']
 
 // Nhập điểm, điểm danh, rèn luyện từ tệp Excel/CSV cho một lớp (DESIGN mục 4). Quyền ghi hẹp hơn
 // quyền xem: điểm do giáo viên được phân công đúng lớp-môn nhập; điểm danh và rèn luyện do GVCN.
@@ -26,7 +26,7 @@ export default function ImportPage() {
         const className =
           homeroom?.name ?? data.teaching.find((item) => item.class_id === classId)?.class_name ?? ''
         const kinds: ImportKind[] = [
-          ...(subjects.length > 0 ? (['assessments'] as const) : []),
+          ...(subjects.length > 0 ? (['assessments', 'lessons'] as const) : []),
           ...(homeroom ? (['attendance', 'conduct'] as const) : []),
         ]
 

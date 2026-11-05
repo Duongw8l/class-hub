@@ -122,6 +122,14 @@ CREATE_MATRIX = [
     (ADMIN, "subject_comment", "11A2", "Ngữ văn", None, "11A2", 403),
     (ADMIN, "report", "11A2", None, None, None, 403),
     (ADMIN, "report", None, None, 11, None, 403),
+    # Gợi ý điều chỉnh kế hoạch dạy học (D-118): chỉ GVBM đúng lớp-môn.
+    (GVBM_VAN_11, "teaching_plan", "11A2", "Ngữ văn", None, None, 201),
+    (GVBM_VAN_11, "teaching_plan", "11A2", "Toán", None, None, 403),  # môn khác
+    (GVBM_VAN_11, "teaching_plan", "10A1", "Ngữ văn", None, None, 403),  # lớp khác
+    (GVBM_TOAN_11, "teaching_plan", "11A2", "Toán", None, None, 201),
+    (GVCN_11A2, "teaching_plan", "11A2", "Ngữ văn", None, None, 403),  # GVCN không dạy môn đó
+    (PRINCIPAL, "teaching_plan", "11A2", "Ngữ văn", None, None, 403),
+    (ADMIN, "teaching_plan", "11A2", "Ngữ văn", None, None, 403),
 ]
 
 
@@ -816,3 +824,62 @@ def test_a_report_the_ai_cannot_write_is_left_for_the_principal(
     assert created.status_code == 201
     assert created.json()["needs_manual"] is True and created.json()["text"] == ""
     assert ReportType.REPORT.value == created.json()["type"]
+
+
+# --- Gợi ý điều chỉnh kế hoạch dạy học (D-118) -----------------------------------------------
+
+
+def test_teaching_plan_is_a_class_subject_draft_without_any_student_identity(
+    api_client: TestClient,
+    auth_headers: Headers,
+    use_llm: UseLlm,
+    db_session: Session,
+    class_id_of: Callable[[str], int],
+    subject_id_of: Callable[[str], int],
+) -> None:
+    writer = FakeWriter()
+    use_llm(writer)
+    class_id, subject_id = class_id_of("11A2"), subject_id_of("Toán")
+    body = {
+        "type": "teaching_plan",
+        "semester": "1",
+        "class_id": class_id,
+        "subject_id": subject_id,
+    }
+
+    response = api_client.post(REPORTS, json=body, headers=auth_headers(GVBM_TOAN_11))
+
+    assert response.status_code == 201, response.text
+    report = response.json()
+    assert report["type"] == "teaching_plan" and report["scope"] == "class"
+    assert report["status"] == "draft" and report["subject_id"] == subject_id
+    # Lời nhắc riêng cho kế hoạch dạy học; dữ liệu chỉ có số gộp, không có họ tên hay mã học sinh.
+    [call] = writer.calls
+    assert "kế hoạch dạy học" in call[0].content
+    sent = writer.sent()
+    for student in repo.class_students(db_session, class_id):
+        assert student.full_name.casefold() not in sent
+        assert student.student_code.casefold() not in sent
+    assert '"assessments"' in call[-1].content and '"students_needing_support"' in call[-1].content
+
+    # Đọc lại qua danh sách: đúng một bản cho lớp-môn-học kỳ này.
+    listed = api_client.get(REPORTS, params=body, headers=auth_headers(GVBM_TOAN_11)).json()
+    assert [item["report"]["id"] for item in listed["items"]] == [report["id"]]
+
+
+def test_teaching_plan_is_only_for_one_semester(
+    api_client: TestClient,
+    auth_headers: Headers,
+    use_llm: UseLlm,
+    class_id_of: Callable[[str], int],
+    subject_id_of: Callable[[str], int],
+) -> None:
+    use_llm(FakeWriter())
+    body = {
+        "type": "teaching_plan",
+        "semester": "year",
+        "class_id": class_id_of("11A2"),
+        "subject_id": subject_id_of("Toán"),
+    }
+    response = api_client.post(REPORTS, json=body, headers=auth_headers(GVBM_TOAN_11))
+    assert response.status_code == 422

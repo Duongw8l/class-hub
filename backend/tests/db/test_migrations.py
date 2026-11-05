@@ -40,6 +40,10 @@ EXTRA_TABLES = {
     "report_jobs",
     "user_import_jobs",
     "assessment_changes",
+    "conduct_changes",  # lịch sử sửa tay rèn luyện (D-119)
+    "attendance_changes",  # lịch sử điểm danh ngày nhập tay (D-120)
+    "lessons",  # sổ điểm danh theo tiết (D-120)
+    "lesson_absences",
 }
 EXPECTED_SETTING_KEYS = {
     "coef_midterm",

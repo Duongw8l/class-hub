@@ -105,6 +105,31 @@ def class_subjects(session: Session, class_id: int) -> list[SubjectInfo]:
     return [SubjectInfo(r[0], r[1], r[2], r[3]) for r in rows]
 
 
+def teaching_of(
+    session: Session, teacher_id: int, *, school_year_id: int
+) -> list[tuple[ClassInfo, SubjectInfo]]:
+    """Các lớp–môn một giáo viên được phân công dạy trong một năm học (D-118)."""
+    rows = session.execute(
+        select(
+            SchoolClass.id,
+            SchoolClass.name,
+            SchoolClass.grade_level,
+            Subject.id,
+            Subject.name,
+            Subject.assessment_type,
+            Subject.periods_per_year,
+        )
+        .join(TeachingAssignment, TeachingAssignment.class_id == SchoolClass.id)
+        .join(Subject, Subject.id == TeachingAssignment.subject_id)
+        .where(
+            TeachingAssignment.teacher_id == teacher_id,
+            SchoolClass.school_year_id == school_year_id,
+        )
+        .order_by(SchoolClass.grade_level, SchoolClass.name, Subject.id)
+    ).all()
+    return [(ClassInfo(r[0], r[1], r[2]), SubjectInfo(r[3], r[4], r[5], r[6])) for r in rows]
+
+
 def class_students(session: Session, class_id: int) -> list[StudentInfo]:
     rows = session.execute(
         select(ClassStudent.id, Student.id, Student.student_code, Student.full_name)
@@ -167,12 +192,13 @@ def absence_by_student(session: Session, class_id: int) -> dict[int, AttendanceS
             func.count().filter(Attendance.status == AttendanceStatus.ABSENT_EXCUSED),
             func.count().filter(Attendance.status == AttendanceStatus.ABSENT_UNEXCUSED),
             func.count().filter(Attendance.status == AttendanceStatus.LATE),
+            func.count().filter(Attendance.status == AttendanceStatus.SCHOOL_DUTY),
         )
         .join(ClassStudent, ClassStudent.id == Attendance.class_student_id)
         .where(ClassStudent.class_id == class_id)
         .group_by(Attendance.class_student_id)
     ).all()
-    return {r[0]: make_summary(r[1], r[2], r[3]) for r in rows}
+    return {r[0]: make_summary(r[1], r[2], r[3], r[4]) for r in rows}
 
 
 def student_guardian(session: Session, student_id: int) -> tuple[str | None, str | None]:

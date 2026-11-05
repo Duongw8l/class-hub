@@ -1,6 +1,9 @@
 from datetime import date
 
+import pytest
+
 from app.analytics.attendance import (
+    absence_level,
     absences_by_month_in_range,
     absences_by_period,
     attendance_summary,
@@ -90,3 +93,37 @@ def test_a_month_outside_the_range_is_kept_so_totals_never_lose_an_absence() -> 
 
     assert [m[0] for m in result] == ["2026-08", "2026-09", "2026-10"]
     assert sum(m[3] for m in result) == attendance_summary(rows).absent_total == 6
+
+
+# --- Vắng do nhà trường cử đi và mức nghỉ (D-120) ------------------------------------------------
+
+
+def test_school_duty_is_counted_apart_and_never_as_an_absence() -> None:
+    rows = [
+        *ROWS,
+        (date(2026, 10, 2), S.SCHOOL_DUTY),  # thi học sinh giỏi
+        (date(2026, 10, 3), S.SCHOOL_DUTY),
+    ]
+    summary = attendance_summary(rows)
+
+    assert summary.school_duty == 2
+    assert summary.absent_total == 5  # như trước khi thêm hai ngày cử đi
+    # Theo tháng cũng không tính.
+    october = absences_by_period(rows, "month")[-1]
+    assert (october.period, october.absent_total) == ("2026-10", 1)
+
+
+@pytest.mark.parametrize(
+    ("total", "expected"),
+    [
+        (0, None),
+        (29, None),
+        (30, "notice"),  # đúng mức nhắc
+        (39, "notice"),
+        (40, "high"),  # đúng mức cao
+        (45, "high"),  # đúng 45: vẫn đủ điều kiện
+        (46, "over"),  # quá 45
+    ],
+)
+def test_absence_level_uses_the_three_settings(total: int, expected: str | None) -> None:
+    assert absence_level(total, notice=30, high=40, maximum=45) == expected
