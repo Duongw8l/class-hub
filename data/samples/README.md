@@ -69,3 +69,14 @@ Sinh bằng `build_diem_30_lop.py` (cần DB đã migrate vì số đầu điể
 - `tong-hop.xlsx`: hướng dẫn, môn của từng lớp (8 bắt buộc + 4 lựa chọn theo tổ hợp của seed), và danh sách học sinh yếu cài sẵn (3 em yếu nhiều môn + 1 em yếu Toán mỗi lớp).
 
 Đã thử nhập thật danh sách học sinh và đủ 24 tệp điểm của các lớp 10A1, 11A2, 12A3, 12A10 trên DB test: không lỗi, không cảnh báo, 40 dòng "Mới" mỗi tệp.
+
+## `ren-luyen-30-lop/`: kết quả rèn luyện 30 lớp (học kỳ I, II, cả năm)
+
+Sinh bằng `build_ren_luyen_30_lop.py`, nạp bằng `load_ren_luyen_30_lop.py` (cả hai chạy trong container backend, `PYTHONPATH=/app:/`). Học sinh lấy đúng từ bộ sinh của `diem-30-lop/` (cùng hạt giống), nên mã và họ tên khớp DB sau khi đã nạp bộ điểm.
+
+- `<lớp>/ren-luyen-hk1.xlsx`, `ren-luyen-hk2.xlsx`, `ren-luyen-ca-nam.xlsx`: 90 tệp, cột `STT`, `Mã HS`, `Họ và tên`, `Xếp loại rèn luyện`, `Nhận xét`. GVCN của lớp nhập ở trang "Nhập dữ liệu → Rèn luyện" và chọn đúng kỳ.
+- `tong-hop.xlsx`: số học sinh theo mức của từng lớp, từng kỳ.
+- Phân bố (1.200 học sinh): học kỳ I Tốt 620, Khá 433, Đạt 143, Chưa đạt 4; học kỳ II và cả năm Tốt 668, Khá 386, Đạt 141, Chưa đạt 5. Mức gắn nhẹ với năng lực học tập của em trong bộ điểm; học kỳ II tiến bộ nhẹ; cả năm theo học kỳ II.
+- Script nạp đóng vai GVCN từng lớp, qua đúng API xem trước → xác nhận (kiểm từng dòng, quyền, nhật ký, cảnh báo sớm chạy lại). Chạy lại được: tệp không đổi thì bỏ qua.
+
+Đã nạp thật vào DB dev ngày 05/11/2026: 3.600 bản ghi mới, 0 lỗi, 0 cảnh báo; chạy lần hai: 3.600 dòng giữ nguyên.
